@@ -8,7 +8,10 @@
 #
 # For inquiries contact  george.drettakis@inria.fr
 #
-
+import cv2
+from matplotlib import cm
+import numpy as np
+from matplotlib.colors import LinearSegmentedColormap
 import os
 import torch
 from random import randint
@@ -27,6 +30,50 @@ try:
     TENSORBOARD_FOUND = True
 except ImportError:
     TENSORBOARD_FOUND = False
+
+def get_grayscale_image_(img, data_range, cmap):
+    img = convert_data(img)
+    img = np.nan_to_num(img)
+    if data_range is None:
+        img = (img - img.min()) / (img.max() - img.min())
+    else:
+        img = img.clip(data_range[0], data_range[1])
+        img = (img - data_range[0]) / (data_range[1] - data_range[0])
+    assert cmap in [None, 'jet', 'magma']
+    if cmap == None:
+        img = (img * 255.).astype(np.uint8)
+        img = np.repeat(img[...,None], 3, axis=2)
+    elif cmap == 'jet':
+        img = (img * 255.).astype(np.uint8)
+        img = cv2.applyColorMap(img, cv2.COLORMAP_JET)
+    elif cmap == 'magma':
+        img = 1. - img
+        base = cm.get_cmap('magma')
+        num_bins = 256
+        colormap = LinearSegmentedColormap.from_list(
+            f"{base.name}{num_bins}",
+            base(np.linspace(0, 1, num_bins)),
+            num_bins
+        )(np.linspace(0, 1, num_bins))[:,:3]
+        a = np.floor(img * 255.)
+        b = (a + 1).clip(max=255.)
+        f = img * 255. - a
+        a = a.astype(np.uint16).clip(0, 255)
+        b = b.astype(np.uint16).clip(0, 255)
+        img = colormap[a] + (colormap[b] - colormap[a]) * f[...,None]
+        img = (img * 255.).astype(np.uint8)
+    return img
+def convert_data(data):
+    if isinstance(data, np.ndarray):
+        return data
+    elif isinstance(data, torch.Tensor):
+        return data.cpu().numpy()
+    elif isinstance(data, list):
+        return [convert_data(d) for d in data]
+    elif isinstance(data, dict):
+        return {k: convert_data(v) for k, v in data.items()}
+    else:
+        raise TypeError('Data must be in type numpy.ndarray, torch.Tensor, list or dict, getting', type(data))
 
 def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
     first_iter = 0
@@ -164,13 +211,17 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
         torch.cuda.empty_cache()
         validation_configs = ({'name': 'test', 'cameras' : scene.getTestCameras()}, 
                               {'name': 'train', 'cameras' : [scene.getTrainCameras()[idx % len(scene.getTrainCameras())] for idx in range(5, 30, 5)]})
-
+        
+        output_dir = os.path.join("/data3/zzy/public_data/truck/output",f"{iteration}")
         for config in validation_configs:
             if config['cameras'] and len(config['cameras']) > 0:
                 l1_test = 0.0
                 psnr_test = 0.0
+                os.makedirs(output_dir,exist_ok=True)
                 for idx, viewpoint in enumerate(config['cameras']):
-                    image = torch.clamp(renderFunc(viewpoint, scene.gaussians, *renderArgs)["render"], 0.0, 1.0)
+                    render_out = renderFunc(viewpoint, scene.gaussians, *renderArgs)
+                    image = torch.clamp(render_out["render"], 0.0, 1.0)
+                    depth = render_out['depth']
                     gt_image = torch.clamp(viewpoint.original_image.to("cuda"), 0.0, 1.0)
                     if tb_writer and (idx < 5):
                         tb_writer.add_images(config['name'] + "_view_{}/render".format(viewpoint.image_name), image[None], global_step=iteration)
@@ -178,6 +229,9 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                             tb_writer.add_images(config['name'] + "_view_{}/ground_truth".format(viewpoint.image_name), gt_image[None], global_step=iteration)
                     l1_test += l1_loss(image, gt_image).mean().double()
                     psnr_test += psnr(image, gt_image).mean().double()
+                    depth = get_grayscale_image_(depth,data_range=None,cmap='jet')
+                    cv2.imwrite(os.path.join(output_dir,f"{idx}_rgb.jpg"),(image.permute(1,2,0).cpu().numpy()*255).astype(np.uint8))
+                    cv2.imwrite(os.path.join(output_dir,f"{idx}_depth.jpg"),depth)
                 psnr_test /= len(config['cameras'])
                 l1_test /= len(config['cameras'])          
                 print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iteration, config['name'], l1_test, psnr_test))
@@ -212,7 +266,7 @@ if __name__ == "__main__":
 
     # Initialize system state (RNG)
     safe_state(args.quiet)
-
+    args.test_iterations = [i*1000 for i in range(0,30)]
     # Start GUI server, configure and run training
     network_gui.init(args.ip, args.port)
     torch.autograd.set_detect_anomaly(args.detect_anomaly)
