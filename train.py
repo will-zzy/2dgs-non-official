@@ -8,6 +8,7 @@
 #
 # For inquiries contact  george.drettakis@inria.fr
 #
+from omegaconf import OmegaConf
 import cv2
 from matplotlib import cm
 import numpy as np
@@ -244,6 +245,13 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
             tb_writer.add_scalar('total_points', scene.gaussians.get_xyz.shape[0], iteration)
         torch.cuda.empty_cache()
 
+def load_config(*yaml_files, cli_args=[]):
+    yaml_confs = [OmegaConf.load(f) for f in yaml_files]
+    cli_conf = OmegaConf.from_cli(cli_args)
+    conf = OmegaConf.merge(*yaml_confs, cli_conf)
+    OmegaConf.resolve(conf)
+    return conf
+
 if __name__ == "__main__":
     # Set up command line argument parser
     parser = ArgumentParser(description="Training script parameters")
@@ -259,7 +267,12 @@ if __name__ == "__main__":
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--checkpoint_iterations", nargs="+", type=int, default=[])
     parser.add_argument("--start_checkpoint", type=str, default = None)
-    args = parser.parse_args(sys.argv[1:])
+    # args = parser.parse_args(sys.argv[1:])
+    parser.add_argument('--conf_path',default='./config/base.yaml')
+    
+    args, extras = parser.parse_known_args()
+    cli_conf = OmegaConf.from_cli()
+    config = load_config(args.conf_path,cli_args=extras)
     args.save_iterations.append(args.iterations)
     
     print("Optimizing " + args.model_path)

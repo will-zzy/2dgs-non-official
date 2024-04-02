@@ -1,0 +1,54 @@
+
+
+case_name: sheep55-ngptest
+root_dir: /data3/zzy/public_data/${case_name}
+# /data3/zzy/public_data/truck
+
+pipeline:
+  convert_SHs_python: false
+  compute_cov3D_python: false
+  debug: false
+
+dataset:
+
+
+neus_model:
+
+
+gs_model:
+  root_dir: ${root_dir}
+  output_dir: ${root_dir}/exp/3dgs
+  sh_degree: 3
+  
+  model_path:
+  images: "images"
+  resolution: -1
+  white_background: false
+  data_device: cuda
+  eval: false
+
+optimizer:
+  iterations: 30000
+  position_lr_init: 1.6e-4
+  position_lr_final: 1.6e-6
+  position_lr_delay_mult: 0.01
+  position_lr_max_steps: 30_00
+  feature_lr: 2.5e-3
+  opacity_lr: 5.e-2
+  scaling_lr: 5.e-3
+  rotation_lr: 1.e-3
+  percent_dense: 1.e-2
+  densification_interval: 100
+  opacity_reset_interval: 3000
+  densify_from_iter: 500
+  densify_until_iter: 15000
+  densify_grad_threshold: 2.e-4
+  random_background: false
+loss:
+  lambda_rgb_nerf: 1.
+  lambda_rgb_gs: 1.
+  lambda_ssim: 0.2
+  lambda_eikonal: 0.
+  lambda_s3im: 0.
+
+
