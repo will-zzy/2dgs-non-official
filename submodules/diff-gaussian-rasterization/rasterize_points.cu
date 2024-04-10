@@ -217,3 +217,20 @@ torch::Tensor markVisible(
   
   return present;
 }
+
+torch::Tensor Orthogonalize(
+	torch::Tensor& rots // [P, 3, 3]
+){
+	const int P = rots.size(0);
+	auto float_opts = rots.options().dtype(torch::kFloat32);
+	torch::Tensor quaternion = torch::full({P, 4}, 0.0, float_opts);
+	if (P != 0){
+		CudaRasterizer::Rasterizer::Orthogonalization(
+			P,
+			rots.contiguous().data<float>(),
+			quaternion.contiguous().data<float>()
+		);
+	}
+	return quaternion;
+
+}

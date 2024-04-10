@@ -8,6 +8,7 @@
 #
 # For inquiries contact  george.drettakis@inria.fr
 #
+import imageio
 from omegaconf import OmegaConf
 import cv2
 from matplotlib import cm
@@ -214,7 +215,7 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
         validation_configs = ({'name': 'test', 'cameras' : scene.getTestCameras()}, 
                               {'name': 'train', 'cameras' : [scene.getTrainCameras()[idx % len(scene.getTrainCameras())] for idx in range(5, 30, 5)]})
         
-        output_dir = os.path.join("/data3/zzy/public_data/truck/output",f"{iteration}")
+        output_dir = os.path.join("/data3/zzy/public_data/tankandtemples/intermediate/Family/output",f"{iteration}")
         for config in validation_configs:
             if config['cameras'] and len(config['cameras']) > 0:
                 l1_test = 0.0
@@ -232,7 +233,7 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
                     l1_test += l1_loss(image, gt_image).mean().double()
                     psnr_test += psnr(image, gt_image).mean().double()
                     depth = get_grayscale_image_(depth,data_range=None,cmap='jet')
-                    cv2.imwrite(os.path.join(output_dir,f"{idx}_rgb.jpg"),(image.permute(1,2,0).cpu().numpy()*255).astype(np.uint8))
+                    imageio.imwrite(os.path.join(output_dir,f"{idx}_rgb.jpg"),(image.permute(1,2,0).cpu().numpy()*255).astype(np.uint8))
                     cv2.imwrite(os.path.join(output_dir,f"{idx}_depth.jpg"),depth)
                 psnr_test /= len(config['cameras'])
                 l1_test /= len(config['cameras'])          

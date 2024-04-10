@@ -15,6 +15,7 @@
 #include "config.h"
 #include "stdio.h"
 
+
 #define BLOCK_SIZE (BLOCK_X * BLOCK_Y)
 #define NUM_WARPS (BLOCK_SIZE/32)
 

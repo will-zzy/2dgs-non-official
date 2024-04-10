@@ -435,3 +435,11 @@ void CudaRasterizer::Rasterizer::backward(
 		(glm::vec3*)dL_dscale,
 		(glm::vec4*)dL_drot), debug)
 }
+
+void CudaRasterizer::Rasterizer::Orthogonalization(const int P, const float* rots, float* quaternion){
+	CHECK_CUDA(FORWARD::Orthogonalization(
+		P, 
+		rots, 
+		quaternion),
+	true);
+}

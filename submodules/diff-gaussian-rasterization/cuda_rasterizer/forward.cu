@@ -377,6 +377,64 @@ renderCUDA(
 	}
 }
 
+__device__ glm::vec3 projection(glm::vec3& u, glm::vec3& v){
+	glm::vec3 proj = u * (glm::dot(u, v) / glm::dot(u, u)); 
+	return proj;
+}
+
+__device__ glm::mat3 gram_schmidt(const glm::mat3& V){ // 每一行是一个向量
+	glm::mat3 U = V; // 深拷贝
+	for(int i = 1; i >= 0; i--){
+		for(int j = 2; j > i; j--){
+			glm::vec3 proj = projection(U[j],U[i]);
+			U[i] -= proj;
+		}
+		U[i] = U[i] / glm::length(U[i]);
+	}
+	return U;
+}
+
+
+__global__ void OrthogonalizationCUDA( //仅仅只是用来初始化
+	const int P, 
+	const float* rots, // 第三列是normal
+	float* quaternions){
+
+	auto idx = cg::this_grid().thread_rank();
+	if (idx >= P)
+		return;
+	
+	const float* rot = rots + idx * 9;
+	float* quaternion = quaternions + idx * 4;
+	glm::mat3 rot_glm = glm::transpose(glm::mat3( 
+		rot[0], rot[1], rot[2], 
+		rot[3], rot[4], rot[5], 
+		rot[6], rot[7], rot[8]
+ 	));
+
+	float det = glm::determinant(rot_glm);
+
+	if(-0.0001 < det && det < 0.0001)
+		rot_glm[0][0] += 1;
+
+	if(det < -0.0001) // 保证行列式为正，这样才是右手坐标系
+		rot_glm[0] *= -1; 
+
+
+	// 通过rot的第三列(法向)正交化，第三列一定是单位向量
+	glm::mat3 orthgonal_rot = glm::transpose(gram_schmidt(rot_glm));
+
+	// 将正交矩阵变换为四元数
+
+	glm::quat q = glm::quat_cast(orthgonal_rot);
+
+	quaternion[0] = -q.w; //
+	quaternion[1] = q.x;
+	quaternion[2] = q.y;
+	quaternion[3] = q.z;
+}
+
+
 void FORWARD::render(
 	const dim3 grid, dim3 block,
 	const uint2* ranges,
@@ -460,4 +518,8 @@ void FORWARD::preprocess(int P, int D, int M,
 		tiles_touched,
 		prefiltered
 		);
+}
+
+void FORWARD::Orthogonalization(const int P, const float* rots, float* quaternion){
+	OrthogonalizationCUDA<<<(P + 255) / 256, 256>>>	(P, rots, quaternion);
 }

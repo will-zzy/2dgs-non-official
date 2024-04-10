@@ -22,7 +22,7 @@ from pathlib import Path
 from plyfile import PlyData, PlyElement
 from utils.sh_utils import SH2RGB
 from scene.gaussian_model import BasicPointCloud
-
+import open3d as o3d
 class CameraInfo(NamedTuple):
     uid: int
     R: np.array
@@ -34,6 +34,7 @@ class CameraInfo(NamedTuple):
     image_name: str
     width: int
     height: int
+    cam_intr: np.array=None
 
 class SceneInfo(NamedTuple):
     point_cloud: BasicPointCloud
@@ -54,7 +55,7 @@ def getNerfppNorm(cam_info):
     cam_centers = []
 
     for cam in cam_info:
-        W2C = getWorld2View2(cam.R, cam.T)
+        W2C = getWorld2View2(cam.R, cam.T) # 这里的T是w2c的T，R是w2c的R转置
         C2W = np.linalg.inv(W2C)
         cam_centers.append(C2W[:3, 3:4])
 
@@ -91,6 +92,11 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
             focal_length_y = intr.params[1]
             FovY = focal2fov(focal_length_y, height)
             FovX = focal2fov(focal_length_x, width)
+        elif intr.model=="OPENCV":
+            focal_length_x = intr.params[0]
+            focal_length_y = intr.params[1]
+            FovY = focal2fov(focal_length_y, height)
+            FovX = focal2fov(focal_length_x, width)
         else:
             assert False, "Colmap camera model not handled: only undistorted datasets (PINHOLE or SIMPLE_PINHOLE cameras) supported!"
 
@@ -99,7 +105,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
         image = Image.open(image_path)
 
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
-                              image_path=image_path, image_name=image_name, width=width, height=height)
+                              image_path=image_path, image_name=image_name, width=width, height=height, cam_intr=intr)
         cam_infos.append(cam_info)
     sys.stdout.write('\n')
     return cam_infos
@@ -109,8 +115,14 @@ def fetchPly(path):
     vertices = plydata['vertex']
     positions = np.vstack([vertices['x'], vertices['y'], vertices['z']]).T
     colors = np.vstack([vertices['red'], vertices['green'], vertices['blue']]).T / 255.0
-    normals = np.vstack([vertices['nx'], vertices['ny'], vertices['nz']]).T
-    return BasicPointCloud(points=positions, colors=colors, normals=normals)
+    # normals = np.vstack([vertices['nx'], vertices['ny'], vertices['nz']]).T
+    
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(positions)
+    pcd.estimate_normals(search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30))
+    
+    # o3d.visualization.draw_geometries([pcd], point_show_normal=True)
+    return BasicPointCloud(points=positions, colors=colors, normals=np.asarray(pcd.normals))
 
 def storePly(path, xyz, rgb):
     # Define the dtype for the structured array

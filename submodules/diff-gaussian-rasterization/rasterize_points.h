@@ -65,3 +65,7 @@ torch::Tensor markVisible(
 		torch::Tensor& means3D,
 		torch::Tensor& viewmatrix,
 		torch::Tensor& projmatrix);
+
+torch::Tensor Orthogonalize(//输入旋转矩阵，以第三列正交化，得到新的正交矩阵，并转换为四元数返回
+	torch::Tensor& rots 
+);

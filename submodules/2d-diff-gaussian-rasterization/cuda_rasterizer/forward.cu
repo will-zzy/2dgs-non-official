@@ -70,6 +70,53 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 	return glm::max(result, 0.0f);
 }
 
+
+__device__ float2 computeLocalGaussian(
+	const float2& center, 
+	float focal_x, float focal_y, float cx, float cy,
+	float su, float sv, // 像素坐标为[-W/2,W/2] 
+	const float3& tu, const float3& tv, 
+	const float3& p,
+	const float* w2c
+){
+/*
+输入图像像素坐标，相机内参，2DGS的参数与W2C
+输出该像素坐标在 参与渲染的高斯的 局部坐标
+*/
+	glm::mat4 H = glm::mat4(
+		su * tu[0], sv * tv[0], 0, p[0],
+		su * tu[1], sv * tv[1], 0, p[1],
+		su * tu[2], sv * tv[2], 0, p[2],
+		0, 0, 0, 1
+	);
+
+	glm::mat4 W = glm::mat4(
+		w2c[0], w2c[4], w2c[8], w2c[12],
+		w2c[1], w2c[5], w2c[9], w2c[13],
+		w2c[2], w2c[6], w2c[10], w2c[14],
+		w2c[3], w2c[7], w2c[11], w2c[15],
+	); // w2c在python端转了个置
+
+	glm::mat4 M_minusT =  glm::transpose(H * W); // M^{-T}用于转换相机坐标系下的平面参数到高斯局部坐标系下的平面参数
+	// 右下前坐标系
+	float x = (center[0] - cx + 0.5) / focal_x; // 像素平面点变换到归一化平面点
+	float y = (center[1] - cy + 0.5) / focal_y;
+
+
+	glm::vec4 hx = glm::vec4(-1, 0, 0, x); // 平行于yoz平面的x平面
+	glm::vec4 hy = glm::vec4(0, -1, 0, y); // 平行于xoz平面的y平面
+    glm::vec4 hu = hx * M_minusT;
+	glm::vec4 hv = hy * M_minusT;
+	
+
+	float u = (hu[1] * hv[3] - hu[3] * hv[1]) / (hu[0] * hv[1] - hu[1] * hv[0]);
+	float v = (hu[3] * hv[1] - hu[1] * hv[3]) / (hu[0] * hv[1] - hu[1] * hv[0]);
+	float2 gauss_uv = {u,v};
+	float g = exp(- (u * u + v * v) / 2);
+	return gauss_uv;
+}
+
+
 // Forward version of 2D covariance matrix computation
 __device__ float3 computeCov2D(const float3& mean, float focal_x, float focal_y, float tan_fovx, float tan_fovy, const float* cov3D, const float* viewmatrix)
 {
@@ -255,6 +302,11 @@ __global__ void preprocessCUDA(int P, int D, int M,
 	tiles_touched[idx] = (rect_max.y - rect_min.y) * (rect_max.x - rect_min.x);
 }
 
+
+
+
+
+
 // Main rasterization method. Collaboratively works on one tile per
 // block, each thread treats one pixel. Alternates between fetching 
 // and rasterizing data.
@@ -265,6 +317,9 @@ renderCUDA(
 	const uint32_t* __restrict__ point_list,
 	int W, int H,
 	const float2* __restrict__ points_xy_image,
+	const float* __restrict__ camera_intr, 
+	const float* __restrict__ quaternions, // [P, 4] 需要用到四元数生成tu,tv
+	const float* __restrict__ scales, // tu, tv轴对应的尺度
 	const float* __restrict__ depths,
 	const float* __restrict__ features,
 	const float4* __restrict__ conic_opacity,
@@ -272,11 +327,14 @@ renderCUDA(
 	uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ bg_color,
 	float* __restrict__ out_color,
-	float* __restrict__ out_depth)
+	float* __restrict__ out_depth,
+
+)
 {
 	// Identify current tile and associated min/max pixel range.
 	auto block = cg::this_thread_block();
 	uint32_t horizontal_blocks = (W + BLOCK_X - 1) / BLOCK_X;
+	// pix_min,pix_max分别对应了当前像素对应tile的左上角和右下角的像素坐标
 	uint2 pix_min = { block.group_index().x * BLOCK_X, block.group_index().y * BLOCK_Y };
 	uint2 pix_max = { min(pix_min.x + BLOCK_X, W), min(pix_min.y + BLOCK_Y , H) };
 	uint2 pix = { pix_min.x + block.thread_index().x, pix_min.y + block.thread_index().y };
@@ -330,12 +388,35 @@ renderCUDA(
 			// Keep track of current position in range
 			contributor++;
 
+
+
+			// 传递到这里需要每一个像素对应gs的权重
 			// Resample using conic matrix (cf. "Surface 
 			// Splatting" by Zwicker et al., 2001)
 			float2 xy = collected_xy[j];
 			float2 d = { xy.x - pixf.x, xy.y - pixf.y };
 			float4 con_o = collected_conic_opacity[j];
 			float power = -0.5f * (con_o.x * d.x * d.x + con_o.z * d.y * d.y) - con_o.y * d.x * d.y;
+			
+			
+			
+			float g = computeLocalGaussian(
+				xy,
+
+
+
+
+
+			);
+
+
+			
+
+
+
+
+
+
 			if (power > 0.0f)
 				continue;
 

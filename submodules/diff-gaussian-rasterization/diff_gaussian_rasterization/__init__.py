@@ -218,4 +218,9 @@ class GaussianRasterizer(nn.Module):
             cov3D_precomp,
             raster_settings, 
         )
-
+class Orthogonalization(nn.Module):
+    def __init__(self):
+        super().__init__()
+    def forward(self,rotations): # 第三列为normal方向，可以不是单位向量
+        rots = _C.Orthogonalize(rotations)
+        return rots

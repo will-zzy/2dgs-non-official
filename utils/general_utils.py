@@ -100,13 +100,13 @@ def build_rotation(r):
 
 def build_scaling_rotation(s, r):
     L = torch.zeros((s.shape[0], 3, 3), dtype=torch.float, device="cuda")
-    R = build_rotation(r)
+    R = build_rotation(r) # 四元数到旋转矩阵
 
     L[:,0,0] = s[:,0]
     L[:,1,1] = s[:,1]
     L[:,2,2] = s[:,2]
 
-    L = R @ L
+    L = R @ L # R@S 
     return L
 
 def safe_state(silent):

@@ -1,7 +1,9 @@
 
 
 case_name: sheep55-ngptest
-root_dir: /data3/zzy/public_data/${case_name}
+# case_name: truck
+# root_dir: /data3/zzy/public_data/${case_name}
+root_dir: /data3/zzy/public_data/tankandtemples/intermediate/Family
 # /data3/zzy/public_data/truck
 
 pipeline:
@@ -10,7 +12,7 @@ pipeline:
   debug: false
 
 dataset:
-
+  type: iterable # all || iterable
 
 neus_model:
 

@@ -17,6 +17,8 @@
 #include "device_launch_parameters.h"
 #define GLM_FORCE_CUDA
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp> 
+#include <glm/gtx/quaternion.hpp>
 
 namespace FORWARD
 {
@@ -62,6 +64,12 @@ namespace FORWARD
 		const float* bg_color,
 		float* out_color,
 		float* out_depth);
+		
+	void Orthogonalization(
+		const int P, 
+		const float* rots, 
+		float* quaternion
+	);
 }
 
 

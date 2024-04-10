@@ -20,6 +20,10 @@ namespace CudaRasterizer
 	class Rasterizer
 	{
 	public:
+		static void Orthogonalization(
+			const int P, 
+			const float* rots, 
+			float* quaternion);
 
 		static void markVisible(
 			int P,
