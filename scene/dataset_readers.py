@@ -10,6 +10,7 @@
 #
 
 import os
+import imageio
 import sys
 from PIL import Image
 from typing import NamedTuple
@@ -24,6 +25,7 @@ from utils.sh_utils import SH2RGB
 from scene.gaussian_model import BasicPointCloud
 import open3d as o3d
 class CameraInfo(NamedTuple):
+    colmap_id: int
     uid: int
     R: np.array
     T: np.array
@@ -32,8 +34,10 @@ class CameraInfo(NamedTuple):
     image: np.array
     image_path: str
     image_name: str
+    image_type: str
     width: int
     height: int
+    downsample: float
     cam_intr: np.array=None
 
 class SceneInfo(NamedTuple):
@@ -66,7 +70,7 @@ def getNerfppNorm(cam_info):
 
     return {"translate": translate, "radius": radius}
 
-def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
+def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, dataset):
     cam_infos = []
     for idx, key in enumerate(cam_extrinsics):
         sys.stdout.write('\r')
@@ -102,10 +106,15 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder):
 
         image_path = os.path.join(images_folder, os.path.basename(extr.name))
         image_name = os.path.basename(image_path).split(".")[0]
-        image = Image.open(image_path)
-
-        cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
-                              image_path=image_path, image_name=image_name, width=width, height=height, cam_intr=intr)
+        
+        
+        if dataset.type == "all":
+            image = Image.open(image_path)
+        elif dataset.type == "iterable":
+            image = None
+        cam_info = CameraInfo(colmap_id=intr.id,uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, downsample=dataset.downsample,
+                              image=image, image_path=image_path, image_name=image_name,
+                              width=width, height=height, cam_intr=intr,image_type=dataset.type) # cam_intr = [fx,fy,cx,cy]
         cam_infos.append(cam_info)
     sys.stdout.write('\n')
     return cam_infos
@@ -141,7 +150,8 @@ def storePly(path, xyz, rgb):
     ply_data = PlyData([vertex_element])
     ply_data.write(path)
 
-def readColmapSceneInfo(path, images, eval, llffhold=8):
+def readColmapSceneInfo(path, img_dir, dataset):
+    
     try:
         cameras_extrinsic_file = os.path.join(path, "sparse/0", "images.bin")
         cameras_intrinsic_file = os.path.join(path, "sparse/0", "cameras.bin")
@@ -153,13 +163,20 @@ def readColmapSceneInfo(path, images, eval, llffhold=8):
         cam_extrinsics = read_extrinsics_text(cameras_extrinsic_file)
         cam_intrinsics = read_intrinsics_text(cameras_intrinsic_file)
 
-    reading_dir = "images" if images == None else images
-    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir))
+
+
+
+    # reading_dir = "images" if images == None else images
+    
+    # 读图像名字/图像和pose
+    
+    # cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=os.path.join(path, reading_dir))
+    cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, images_folder=img_dir,dataset=dataset)
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
 
     if eval:
-        train_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold != 0]
-        test_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold == 0]
+        train_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % dataset.val_every_train_img_batch != 0]
+        test_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % dataset.val_every_train_img_batch == 0]
     else:
         train_cam_infos = cam_infos
         test_cam_infos = []

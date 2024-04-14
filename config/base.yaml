@@ -1,8 +1,10 @@
 
 
-case_name: sheep55-ngptest
-# case_name: truck
+# case_name: sheep55-ngptest
+case_name: truck
+# case_name: ObliqueSBY1580
 # root_dir: /data3/zzy/public_data/${case_name}
+# root_dir: /data3/zzy/data_lab/${case_name}
 root_dir: /data3/zzy/public_data/tankandtemples/intermediate/Family
 # /data3/zzy/public_data/truck
 
@@ -12,22 +14,34 @@ pipeline:
   debug: false
 
 dataset:
-  type: iterable # all || iterable
+  name: colmap
+  type: all # all || iterable
+  undistortion: True
+  downsample: 0.8
+  eval: False
+  val_every_train_img_batch: 8
+  resolution: -1
+  data_device: cuda
+  white_background: false
 
+
+
+  
 neus_model:
 
 
 gs_model:
   root_dir: ${root_dir}
   output_dir: ${root_dir}/exp/3dgs
+  model_path:
+  load_iteration: false
   sh_degree: 3
   
-  model_path:
   images: "images"
-  resolution: -1
-  white_background: false
-  data_device: cuda
-  eval: false
+  downsample: ${dataset.downsample}
+  # resolution: -1
+  white_background: ${dataset.white_background}
+  eval: ${dataset.eval}
 
 optimizer:
   iterations: 30000
