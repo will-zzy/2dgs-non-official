@@ -29,7 +29,7 @@ class Camera(nn.Module):
         self.FoVy = cam_info.FovY
         self.image_name = cam_info.image_name
         self.image_path = cam_info.image_path
-        self.cam_intr = cam_info.cam_intr.params * cam_info.downsample
+        self.cam_intr = torch.tensor(cam_info.cam_intr.params * cam_info.downsample,dtype=torch.float32,device=data_device)
         self.image_type = cam_info.image_type
         self.uid = uid
         self.resolution = resolution
@@ -37,6 +37,7 @@ class Camera(nn.Module):
 
         try:
             self.data_device = torch.device(data_device)
+            # self.cam_intr.device = self.data_device
         except Exception as e:
             print(e)
             print(f"[Warning] Custom device {data_device} failed, fallback to default cuda device" )
