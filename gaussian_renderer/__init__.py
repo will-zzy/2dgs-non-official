@@ -94,13 +94,13 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
         scales = scales,
         rotations = rotations,
         cov3D_precomp = cov3D_precomp)
-
+    radii_scalar = torch.norm(radii,dim=-1)
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.
     return {"render": rendered_image,
             "viewspace_points": screenspace_points,
-            "visibility_filter" : radii > 0,
-            "radii": radii,
+            "visibility_filter" : radii_scalar > 0,
+            "radii": radii_scalar,
             "depth": depth,
             "opacity": opacity,
             "normal": normal}

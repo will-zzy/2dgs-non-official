@@ -45,7 +45,7 @@ __device__ glm::mat3 computeRotScaFromQua(glm::vec4 quaternion, glm::vec3 scale)
 	float y = quaternion.z;
 	float z = quaternion.w;
 
-	glm::mat3 R = glm::mat3(
+	glm::mat3 R = glm::mat3(// 每一列是一个向量
 		1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
 		2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
 		2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
@@ -113,9 +113,9 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 
 
 __device__ float computeLocalGaussian(
-	const glm::mat3x4* T, 
+	const glm::mat3x4* T, // KWH_t
 	const float2 center,  // 像素坐标
-	const float2 point_image
+	const float2 point_image // 高斯投影
 	// const float dist3d, // uv平面上的距离
 	// float* dist // xy平面上的距离
 ){
@@ -123,7 +123,7 @@ __device__ float computeLocalGaussian(
 	glm::vec3 k = -T_t[0] + center.x * T_t[3]; // hu
 	glm::vec3 l = -T_t[1] + center.y * T_t[3]; // hv
 	
-	glm::vec3 point = glm::cross(k,l);
+	glm::vec3 point = glm::cross(k,l); 
 
 	point /= point.z; // 该像素在uv平面上的投影点
 
@@ -229,20 +229,26 @@ __device__ void compute2DGSBBox(
 	const glm::vec4 quaternion,
 	const glm::vec3 scale,
 	const float* p, // 高斯质心
+	float* normal,
 	float* radii,
 	float2* point_image,
 	glm::mat3x4* T
 ){
 
 	glm::mat3 rotation = glm::transpose(computeRotScaFromQua(quaternion, scale)); // R.T
+	normal[0] = rotation[2][0] / scale.z;
+	normal[1] = rotation[2][1] / scale.z;
+	normal[2] = rotation[2][2] / scale.z;
+	
 	// cout << glm::determinant(rotation) << endl;
 	glm::vec4 means3D = glm::vec4(p[0],p[1],p[2],1.0f);
 	glm::vec4 p_view = viewmatrix * means3D; // 在后的为行向量
 	// 计算深度用p_view
 
 	glm::mat3 viewmatrix_R = makeMat3FromMat4(viewmatrix); 
-	glm::mat4 uv_view = viewmatrix_R * rotation; // 3x3，相机坐标系下，高斯椭球的朝向转置，每个行向量是高斯每根轴的朝向与尺度
+	glm::mat3 uv_view = viewmatrix_R * rotation; // 3x3，相机坐标系下，高斯椭球的朝向转置，每个行向量是高斯每根轴的朝向与尺度
 	
+	// std::printf("sucess1");
 
 	// glm::mat4 projmatrix = glm::make_mat4(proj);
 	glm::mat3x4 M = glm::mat3x4(
@@ -284,7 +290,7 @@ __device__ void compute2DGSBBox(
 	// 	glm::dot(temp_point,T_t[2] * T_t[2])
 	// );
 	// cout << glm::to_string(*T) << endl;
-	float2 radi = {
+	float2 radi = { // 两根之差的平方
 		glm::sqrt(glm::clamp(radius_square.x,0.0001f,10000.0f)),
 		glm::sqrt(glm::clamp(radius_square.y,0.0001f,10000.0f))
 	};
@@ -320,6 +326,7 @@ __global__ void preprocessCUDA(int P, int D, int M, // 计算2dgs的radii，并�
 	float* radii,
 	float2* points_xy_image,
 	float* depths,
+	float* normals,
 	glm::mat3x4* KWH_t, // T
 	float* rgb,
 	float4* conic_opacity,
@@ -327,7 +334,6 @@ __global__ void preprocessCUDA(int P, int D, int M, // 计算2dgs的radii，并�
 	uint32_t* tiles_touched,
 	bool prefiltered)
 {
-	// std::printf("sucess");
 	auto idx = cg::this_grid().thread_rank();
 	if (idx >= P)
 		return;
@@ -335,13 +341,14 @@ __global__ void preprocessCUDA(int P, int D, int M, // 计算2dgs的radii，并�
 	// Initialize radius and touched tiles to 0. If this isn't changed,
 	// this Gaussian will not be processed further.
 	
-	radii[idx] = 0.0f;
-	radii[idx + 1] = 0.0f;
+	radii[2 * idx] = 0.0f;
+	radii[2 * idx + 1] = 0.0f;
 	
 	tiles_touched[idx] = 0;
 
 	// Perform near culling, quit if outside.
 	glm::vec4 p_view;
+
 	if (!in_frustum(idx, orig_points, *viewmatrix, *projmatrix, prefiltered, &p_view))
 		return;
 
@@ -352,18 +359,19 @@ __global__ void preprocessCUDA(int P, int D, int M, // 计算2dgs的radii，并�
 	// float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
 	
 	// glm::vec3 radi;
-	glm::vec3 means2D;
+	// glm::vec3 means2D;
 	compute2DGSBBox(
 		*viewmatrix,
 		*projmatrix,
 		rotations[idx],
 		scales[idx],
 		orig_points + 3 * idx,
+		normals + 3 * idx,
 		radii + 2 * idx,
 		points_xy_image + idx,
 		KWH_t + idx
 	);
-	printf("%f,%f\n",radii[2 * idx], radii[2 * idx + 1]);
+	// printf("%f,%f\n",radii[2 * idx], radii[2 * idx + 1]);
 	// Compute extent in screen space (by finding eigenvalues of
 	// 2D covariance matrix). Use extent to compute a bounding rectangle
 	// of screen-space tiles that this Gaussian overlaps with. Quit if
@@ -415,9 +423,10 @@ renderCUDA(
 	const float2* __restrict__ points_xy_image, //!!!
 	const float* __restrict__ means3D, // 3d高斯点
 	const float* __restrict__ depths,
-	const float* __restrict__ camera_intr, 
-	const glm::vec4* __restrict__ quaternions, // [P, 4] 需要用到四元数生成tu,tv
-	const glm::vec3* __restrict__ scales, // tu, tv轴对应的尺度
+	const float* __restrict__ normals,
+	// const float* __restrict__ cam_intr, 
+	// const glm::vec4* __restrict__ quaternions, // [P, 4] 需要用到四元数生成tu,tv
+	// const glm::vec3* __restrict__ scales, // tu, tv轴对应的尺度
 	const glm::mat3x4* __restrict__ KWH_t, //!!!
 	const float* __restrict__ features,
 	const float4* __restrict__ conic_opacity,
@@ -464,6 +473,7 @@ renderCUDA(
 	uint32_t last_contributor = 0;
 	float C[CHANNELS] = { 0 };
 	float depth = 0.0f;
+	float normal[3];
 
 	// Iterate over batches until all done or range is complete
 	for (int i = 0; i < rounds; i++, toDo -= BLOCK_SIZE)
@@ -501,6 +511,8 @@ renderCUDA(
 				pixf,
 				xy
 			);
+			if (g < 0.000001f)
+				continue;
 
 			// if (power > 0.0f)
 			// 	continue;
@@ -522,7 +534,11 @@ renderCUDA(
 			// Eq. (3) from 3D Gaussian splatting paper.
 			for (int ch = 0; ch < CHANNELS; ch++)
 				C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
+
 			depth += depths[collected_id[j]] * alpha * T;
+			// normal[0] += normals[collected_id[j] * 3] * alpha * T;
+			// normal[1] += normals[collected_id[j] * 3 + 1] * alpha * T;
+			// normal[2] += normals[collected_id[j] * 3 + 2] * alpha * T;
 
 			T = test_T;
 
@@ -538,10 +554,11 @@ renderCUDA(
 	{
 		final_T[pix_id] = T;
 		n_contrib[pix_id] = last_contributor;
-		for (int ch = 0; ch < CHANNELS; ch++)
+		for (int ch = 0; ch < CHANNELS; ch++){
 			out_color[ch * H * W + pix_id] = C[ch] + T * bg_color[ch];
+			// out_normal[ch * H * W + pix_id] = normal[ch];
+		}
 		out_depth[pix_id] = depth;
-		// out_normal[pix_id] = normal;
 		out_opacity[pix_id] = 1 - T;
 	}
 }
@@ -554,9 +571,10 @@ void FORWARD::render(
 	const float2* points_xy_image,
 	const float* means3D,
 	const float* depths,
-	const float* cam_intr,
-	const glm::vec4* quaternions,
-	const glm::vec3* scales,
+	const float* normals,
+	// const float* cam_intr,
+	// const glm::vec4* quaternions,
+	// const glm::vec3* scales,
 	const glm::mat3x4* KWH_t,
 	const float* colors,
 	const float4* conic_opacity,
@@ -575,9 +593,10 @@ void FORWARD::render(
 		points_xy_image,
 		means3D,
 		depths,
-		cam_intr,
-		quaternions,
-		scales,
+		normals,
+		// cam_intr,
+		// quaternions,
+		// scales,
 		KWH_t,
 		colors,
 		conic_opacity,
@@ -610,6 +629,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	float* radii,
 	float2* means2D,
 	float* depths,
+	float* normals,
 	glm::mat3x4* KWH_t,
 	float* rgb,
 	float4* conic_opacity,
@@ -617,11 +637,11 @@ void FORWARD::preprocess(int P, int D, int M,
 	uint32_t* tiles_touched,
 	bool prefiltered)
 {	
-	std::cout << "success" << std::endl;
-	std::cout << viewmatrix << std::endl;
-	// print_matrix3(viewmatrix);
-	// print_matrix3(projmatrix);
-	std::cout << "success" << std::endl;
+	// std::cout << "success" << std::endl;
+	// std::cout << viewmatrix << std::endl;
+	// // print_matrix3(viewmatrix);
+	// // print_matrix3(projmatrix);
+	// std::cout << "success" << std::endl;
 	// std::cout << glm::to_string(*viewmatrix) << std::endl;
 	// std::cout << glm::to_string(*projmatrix) << std::endl;
 	// std::cout << viewmatrix
@@ -648,6 +668,7 @@ void FORWARD::preprocess(int P, int D, int M,
 		radii,
 		means2D,
 		depths,
+		normals,
 		KWH_t,
 		rgb,
 		conic_opacity,

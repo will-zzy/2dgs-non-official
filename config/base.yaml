@@ -19,7 +19,7 @@ dataset:
   undistortion: True
   downsample: 0.8
   eval: False
-  val_every_train_img_batch: 8
+  val_every_train_img_batch: 28
   resolution: -1
   data_device: cuda
   white_background: false

@@ -120,10 +120,20 @@ RasterizeGaussiansCUDA(
 		radii.contiguous().data<float>(),
 		debug);
   }
-  return std::make_tuple(rendered, out_color, out_depth, out_normal, out_opacity, radii, geomBuffer, binningBuffer, imgBuffer);
+  return std::make_tuple(
+	rendered, 
+	out_color, 
+	out_depth, 
+	out_normal, 
+	out_opacity, 
+	radii, 
+	geomBuffer, 
+	binningBuffer, 
+	imgBuffer);
 }
 
-std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+// std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
  RasterizeGaussiansBackwardCUDA(
  	const torch::Tensor& background,
 	const torch::Tensor& means3D,
@@ -132,11 +142,11 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	const torch::Tensor& scales,
 	const torch::Tensor& rotations,
 	const float scale_modifier,
-	const torch::Tensor& cov3D_precomp,
+	// const torch::Tensor& cov3D_precomp,
 	const torch::Tensor& viewmatrix,
     const torch::Tensor& projmatrix,
-	const float tan_fovx,
-	const float tan_fovy,
+	// const float tan_fovx,
+	// const float tan_fovy,
     const torch::Tensor& dL_dout_color,
 	const torch::Tensor& sh,
 	const int degree,
@@ -160,12 +170,14 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   torch::Tensor dL_dmeans3D = torch::zeros({P, 3}, means3D.options());
   torch::Tensor dL_dmeans2D = torch::zeros({P, 3}, means3D.options());
   torch::Tensor dL_dcolors = torch::zeros({P, NUM_CHANNELS}, means3D.options());
-  torch::Tensor dL_dconic = torch::zeros({P, 2, 2}, means3D.options());
+//   torch::Tensor dL_dconic = torch::zeros({P, 2, 2}, means3D.options());
   torch::Tensor dL_dopacity = torch::zeros({P, 1}, means3D.options());
-  torch::Tensor dL_dcov3D = torch::zeros({P, 6}, means3D.options());
+//   torch::Tensor dL_dcov3D = torch::zeros({P, 6}, means3D.options());
   torch::Tensor dL_dsh = torch::zeros({P, M, 3}, means3D.options());
   torch::Tensor dL_dscales = torch::zeros({P, 3}, means3D.options());
   torch::Tensor dL_drotations = torch::zeros({P, 4}, means3D.options());
+  torch::Tensor dL_KWH_t = torch::zeros({P, 3, 4}, means3D.options());
+  
   
   if(P != 0)
   {  
@@ -178,30 +190,40 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  scales.data_ptr<float>(),
 	  scale_modifier,
 	  rotations.data_ptr<float>(),
-	  cov3D_precomp.contiguous().data<float>(),
+	//   cov3D_precomp.contiguous().data<float>(),
 	  viewmatrix.contiguous().data<float>(),
 	  projmatrix.contiguous().data<float>(),
 	  campos.contiguous().data<float>(),
-	  tan_fovx,
-	  tan_fovy,
+	//   tan_fovx,
+	//   tan_fovy,
 	  radii.contiguous().data<float>(),
 	  reinterpret_cast<char*>(geomBuffer.contiguous().data_ptr()),
 	  reinterpret_cast<char*>(binningBuffer.contiguous().data_ptr()),
 	  reinterpret_cast<char*>(imageBuffer.contiguous().data_ptr()),
 	  dL_dout_color.contiguous().data<float>(),
+	  dL_KWH_t.contiguous().data<float>(),
 	  dL_dmeans2D.contiguous().data<float>(),
-	  dL_dconic.contiguous().data<float>(),  
+	//   dL_dconic.contiguous().data<float>(),  
 	  dL_dopacity.contiguous().data<float>(),
 	  dL_dcolors.contiguous().data<float>(),
 	  dL_dmeans3D.contiguous().data<float>(),
-	  dL_dcov3D.contiguous().data<float>(),
+	//   dL_dcov3D.contiguous().data<float>(),
 	  dL_dsh.contiguous().data<float>(),
 	  dL_dscales.contiguous().data<float>(),
 	  dL_drotations.contiguous().data<float>(),
 	  debug);
   }
 
-  return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations);
+//   return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations);
+  return std::make_tuple(
+	dL_dmeans2D, 
+	dL_dcolors, 
+	dL_dopacity, 
+	// dL_KWH_t, 
+	dL_dmeans3D, 
+	dL_dsh, 
+	dL_dscales, 
+	dL_drotations);
 }
 
 torch::Tensor markVisible(

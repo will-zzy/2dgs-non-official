@@ -165,7 +165,7 @@ __global__ void computeCov2DCUDA(int P,
 	const float h_x, float h_y,
 	const float tan_fovx, float tan_fovy,
 	const float* view_matrix,
-	const float* dL_dconics,
+	const float* dL_dconics, // a,b,c,opaicty
 	float3* dL_dmeans,
 	float* dL_dcov)
 {
@@ -357,6 +357,84 @@ __device__ void computeCov3D(int idx, const glm::vec3 scale, float mod, const gl
 	*dL_drot = float4{ dL_dq.x, dL_dq.y, dL_dq.z, dL_dq.w };//dnormvdv(float4{ rot.x, rot.y, rot.z, rot.w }, float4{ dL_dq.x, dL_dq.y, dL_dq.z, dL_dq.w });
 }
 
+__device__ void compute2DGSBBox(
+	const glm::mat4 W2C_T, // w2c.T
+	const glm::mat4 projmatrix, // intrinsic.T
+	const glm::vec4 quaternion,
+	const glm::vec3 scale,
+	const glm::mat3x4 dL_KWH_t,
+	glm::vec3* dL_dmeans,
+	glm::vec3* dL_dscale,
+	glm::vec4* dL_drot
+){
+	// glm::mat4x3 dL_KWH = glm::transpose(dL_KWH_t);
+	float fx = projmatrix[0][0];
+	float fy = projmatrix[2][0];
+	float cx = projmatrix[1][1];
+	float cy = projmatrix[2][1];
+	glm::mat3x4 dL_dM(0.0f); 
+	
+
+	// T = K @ M
+	dL_dM[0][0] = fx * dL_KWH_t[0][0];
+	dL_dM[1][0] = fx * dL_KWH_t[1][0];
+	dL_dM[2][0] = fx * dL_KWH_t[2][0];
+
+	dL_dM[0][1] = fy * dL_KWH_t[0][1];
+	dL_dM[1][1] = fy * dL_KWH_t[1][1];
+	dL_dM[2][1] = fy * dL_KWH_t[2][1];
+	
+	dL_dM[0][2] = cx*dL_KWH_t[0][0] + cy*dL_KWH_t[0][1] + dL_KWH_t[0][2] + dL_KWH_t[0][3];
+	dL_dM[1][2] = cx*dL_KWH_t[1][0] + cy*dL_KWH_t[1][1] + dL_KWH_t[1][2] + dL_KWH_t[1][3];
+	dL_dM[2][2] = cx*dL_KWH_t[2][0] + cy*dL_KWH_t[2][1] + dL_KWH_t[2][2] + dL_KWH_t[2][3];
+
+	// M[2,0:3] = p
+	dL_dmeans->x = dL_dM[2][0];
+	dL_dmeans->y = dL_dM[2][1];
+	dL_dmeans->z = dL_dM[2][2];
+	
+	// Y = uv_view = H @ W
+	glm::mat3 dL_dH(0.0f);
+	dL_dH[0][0] = dL_dM[0][0]*W2C_T[0][0] + dL_dM[0][1]*W2C_T[0][1] + dL_dM[0][2]*W2C_T[0][2];
+	dL_dH[0][1] = dL_dM[0][0]*W2C_T[1][0] + dL_dM[0][1]*W2C_T[1][1] + dL_dM[0][2]*W2C_T[1][2];
+	dL_dH[0][2] = dL_dM[0][0]*W2C_T[2][0] + dL_dM[0][1]*W2C_T[2][1] + dL_dM[0][2]*W2C_T[2][2];
+
+	dL_dH[1][0] = dL_dM[1][0]*W2C_T[0][0] + dL_dM[1][1]*W2C_T[0][1] + dL_dM[1][2]*W2C_T[0][2];
+	dL_dH[1][1] = dL_dM[1][0]*W2C_T[1][0] + dL_dM[1][1]*W2C_T[1][1] + dL_dM[1][2]*W2C_T[1][2];
+	dL_dH[1][2] = dL_dM[1][0]*W2C_T[2][0] + dL_dM[1][1]*W2C_T[2][1] + dL_dM[1][2]*W2C_T[2][2];
+	
+	// H = (R @ S)^T
+
+
+	float r = quaternion.x;
+	float x = quaternion.y;
+	float y = quaternion.z;
+	float z = quaternion.w;
+	
+	glm::mat3 R_t = glm::transpose(glm::mat3(// 每一列是一个向量
+		1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
+		2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
+		2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
+	));
+	
+	dL_dscale->x = dL_dH[0][0]*R_t[0][0] + dL_dH[0][1]*R_t[0][1] + dL_dH[0][2]*R_t[0][2];
+	dL_dscale->y = dL_dH[1][0]*R_t[1][0] + dL_dH[1][1]*R_t[1][1] + dL_dH[1][2]*R_t[1][2];
+	dL_dscale->z = 0.0f;
+	// q = r, x, y, z
+	dL_dH[0] /= scale.x;
+	dL_dH[1] /= scale.y;
+	dL_dH[2] /= scale.z;
+	
+
+
+	dL_drot->x = 2*x*dL_dH[1][2] - 2*y*dL_dH[0][2] + 2*z*(dL_dH[0][1]-dL_dH[1][0]);
+	dL_drot->y = 2*r*dL_dH[1][2] - 4*x*dL_dH[1][1] + 2*y*(dL_dH[0][1]+dL_dH[1][0]) + 2*z*dL_dH[0][2];
+	dL_drot->z = -2*r*dL_dH[0][2] + 2*x*(dL_dH[0][1]+dL_dH[1][0]) - 4*y*dL_dH[0][0] + 2*z*dL_dH[1][2];
+	dL_drot->w = 2*r+(dL_dH[0][1]-dL_dH[1][0]) + 2*x*dL_dH[0][2] + 2*y*dL_dH[1][2] - 4*z*(dL_dH[0][0]+dL_dH[1][1]);
+	
+
+}
+
 // Backward pass of the preprocessing steps, except
 // for the covariance computation and inversion
 // (those are handled by a previous kernel call)
@@ -370,46 +448,66 @@ __global__ void preprocessCUDA(
 	const glm::vec3* scales,
 	const glm::vec4* rotations,
 	const float scale_modifier,
-	const float* proj,
+	const glm::mat4* viewmatrix, // w2c.T
+	const glm::mat4* projmatrix, // intrinsic.T
 	const glm::vec3* campos,
+	const glm::mat3x4* dL_KWH_t,
 	const float3* dL_dmean2D,
-	glm::vec3* dL_dmeans,
+	glm::vec3* dL_dmeans, // 对质心的导数
 	float* dL_dcolor,
-	float* dL_dcov3D,
+	// float* dL_dcov3D,
 	float* dL_dsh,
 	glm::vec3* dL_dscale,
 	glm::vec4* dL_drot)
-{
+{   
 	auto idx = cg::this_grid().thread_rank();
-	if (idx >= P || !(radii[idx] > 0))
+	
+	float my_radius = sqrt(radii[2 * idx]*radii[2 * idx] + radii[2 * idx + 1]*radii[2 * idx + 1]);
+	if (idx >= P || !(my_radius > 0.00001f))
 		return;
 
-	float3 m = means[idx];
+	// float3 m = means[idx]; // 三维点坐标
+	// 先不考虑投影点的梯度(因为没有滤波)
+	// 则这里的梯度全部由dL_KWH_t提供
+	// 后续如果要加的话需要加一条KWH_t -> point_image_xy -> g的路径
+	// 这条路径可以在preprocess中实现（因为路径通过dL_dmean2D）
+	compute2DGSBBox(
+		*viewmatrix,
+		*projmatrix,
+		rotations[idx],
+		scales[idx],
+		dL_KWH_t[idx],
+		dL_dmeans + idx,
+		dL_dscale + idx,
+		dL_drot + idx
+	);
+	
 
 	// Taking care of gradients from the screenspace points
-	float4 m_hom = transformPoint4x4(m, proj);
-	float m_w = 1.0f / (m_hom.w + 0.0000001f);
+	// float4 m_hom = transformPoint4x4(m, proj);
+	// float m_w = 1.0f / (m_hom.w + 0.0000001f);
 
-	// Compute loss gradient w.r.t. 3D means due to gradients of 2D means
-	// from rendering procedure
-	glm::vec3 dL_dmean;
-	float mul1 = (proj[0] * m.x + proj[4] * m.y + proj[8] * m.z + proj[12]) * m_w * m_w;
-	float mul2 = (proj[1] * m.x + proj[5] * m.y + proj[9] * m.z + proj[13]) * m_w * m_w;
-	dL_dmean.x = (proj[0] * m_w - proj[3] * mul1) * dL_dmean2D[idx].x + (proj[1] * m_w - proj[3] * mul2) * dL_dmean2D[idx].y;
-	dL_dmean.y = (proj[4] * m_w - proj[7] * mul1) * dL_dmean2D[idx].x + (proj[5] * m_w - proj[7] * mul2) * dL_dmean2D[idx].y;
-	dL_dmean.z = (proj[8] * m_w - proj[11] * mul1) * dL_dmean2D[idx].x + (proj[9] * m_w - proj[11] * mul2) * dL_dmean2D[idx].y;
+	// // Compute loss gradient w.r.t. 3D means due to gradients of 2D means
+	// // from rendering procedure
+	// // 二维投影点对质心的导数
+	// glm::vec3 dL_dmean;
+	// float mul1 = (proj[0] * m.x + proj[4] * m.y + proj[8] * m.z + proj[12]) * m_w * m_w;
+	// float mul2 = (proj[1] * m.x + proj[5] * m.y + proj[9] * m.z + proj[13]) * m_w * m_w;
+	// dL_dmean.x = (proj[0] * m_w - proj[3] * mul1) * dL_dmean2D[idx].x + (proj[1] * m_w - proj[3] * mul2) * dL_dmean2D[idx].y;
+	// dL_dmean.y = (proj[4] * m_w - proj[7] * mul1) * dL_dmean2D[idx].x + (proj[5] * m_w - proj[7] * mul2) * dL_dmean2D[idx].y;
+	// dL_dmean.z = (proj[8] * m_w - proj[11] * mul1) * dL_dmean2D[idx].x + (proj[9] * m_w - proj[11] * mul2) * dL_dmean2D[idx].y;
 
-	// That's the second part of the mean gradient. Previous computation
-	// of cov2D and following SH conversion also affects it.
-	dL_dmeans[idx] += dL_dmean;
+	// // That's the second part of the mean gradient. Previous computation
+	// // of cov2D and following SH conversion also affects it.
+	// dL_dmeans[idx] += dL_dmean;
 
 	// Compute gradient updates due to computing colors from SHs
 	if (shs)
 		computeColorFromSH(idx, D, M, (glm::vec3*)means, *campos, shs, clamped, (glm::vec3*)dL_dcolor, (glm::vec3*)dL_dmeans, (glm::vec3*)dL_dsh);
 
 	// Compute gradient updates due to computing covariance from scale/rotation
-	if (scales)
-		computeCov3D(idx, scales[idx], scale_modifier, rotations[idx], dL_dcov3D, dL_dscale, dL_drot);
+	// if (scales)
+	// 	computeCov3D(idx, scales[idx], scale_modifier, rotations[idx], dL_dcov3D, dL_dscale, dL_drot);
 }
 
 // Backward version of the rendering procedure.
@@ -421,13 +519,15 @@ renderCUDA(
 	int W, int H,
 	const float* __restrict__ bg_color,
 	const float2* __restrict__ points_xy_image,
+	const glm::mat3x4* __restrict__ KWH_t, //!!!
 	const float4* __restrict__ conic_opacity,
 	const float* __restrict__ colors,
 	const float* __restrict__ final_Ts, // \Pi (1-alpha*g) (j=1,...,N)
 	const uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ dL_dpixels, //dl/dc
-	float3* __restrict__ dL_dmean2D,
-	float4* __restrict__ dL_dconic2D,
+	glm::mat3x4* __restrict__ dL_KWH_t,
+	// float3* __restrict__ dL_dmean2D,
+	// float4* __restrict__ dL_dconic2D,
 	float* __restrict__ dL_dopacity,
 	float* __restrict__ dL_dcolors)
 {
@@ -511,14 +611,24 @@ renderCUDA(
 				continue;
 
 			// Compute blending values, as before.
-			const float2 xy = collected_xy[j];
-			const float2 d = { xy.x - pixf.x, xy.y - pixf.y };
-			const float4 con_o = collected_conic_opacity[j];
-			const float power = -0.5f * (con_o.x * d.x * d.x + con_o.z * d.y * d.y) - con_o.y * d.x * d.y;
-			if (power > 0.0f)
-				continue;
+			// const float2 xy = collected_xy[j]; // 高斯投影点，如果要滤波会用到
 
-			const float G = exp(power);
+			// const float2 d = { xy.x - pixf.x, xy.y - pixf.y };
+			const float4 con_o = collected_conic_opacity[j];
+			// const float power = -0.5f * (con_o.x * d.x * d.x + con_o.z * d.y * d.y) - con_o.y * d.x * d.y;
+			// if (power > 0.0f)
+			// 	continue;
+			// const float G = exp(power);
+			
+			const glm::mat4x3 T_t = glm::transpose(KWH_t[collected_id[j]]);//
+			const glm::vec3 k = -T_t[0] + pixf.x * T_t[3]; // hu
+			const glm::vec3 l = -T_t[1] + pixf.y * T_t[3]; // hv
+			const glm::vec3 point = glm::cross(k,l); 
+			const float dist3d = (point.x * point.x + point.y * point.y) / (point.z * point.z);
+			if (dist3d > 3.0f)
+				continue;
+			const float G = exp(-0.5 * dist3d);
+
 			const float alpha = min(0.99f, con_o.w * G); // 这里的alpha指ag
 			if (alpha < 1.0f / 255.0f)
 				continue;
@@ -558,20 +668,45 @@ renderCUDA(
 
 
 			// Helpful reusable temporary variables
-			const float dL_dG = con_o.w * dL_dalpha;
-			const float gdx = G * d.x;
-			const float gdy = G * d.y;
-			const float dG_ddelx = -gdx * con_o.x - gdy * con_o.y;
-			const float dG_ddely = -gdy * con_o.z - gdx * con_o.y;
+			const float dL_dG = con_o.w * dL_dalpha; // dl/dg_i
+			// 需要计算k,l,dd_dp,dL_dd
+			const float dL_dd = -G * dist3d / 2;
+			const float p3_p3 = point.z * point.z;
+			const glm::vec3 dd_dp = {
+				2 * point.x / p3_p3, 
+				2 * point.y / p3_p3,
+				-2 * (point.x * point.x + point.y * point.y) / p3_p3	
+			};
+			float x = pixf.x;
+			float y = pixf.y;
+			
+			atomicAdd(&dL_KWH_t[global_id][0][0], dL_dd * (dd_dp.y*l.z - dd_dp.z*l.y));
+			atomicAdd(&dL_KWH_t[global_id][1][0], dL_dd * (-dd_dp.x*l.z + dd_dp.z*l.x));
+			atomicAdd(&dL_KWH_t[global_id][2][0], dL_dd * (dd_dp.x*l.y - dd_dp.y*l.x));
 
-			// Update gradients w.r.t. 2D mean position of the Gaussian
-			atomicAdd(&dL_dmean2D[global_id].x, dL_dG * dG_ddelx * ddelx_dx); 
-			atomicAdd(&dL_dmean2D[global_id].y, dL_dG * dG_ddely * ddely_dy);
+			atomicAdd(&dL_KWH_t[global_id][0][1], dL_dd * (-dd_dp.y*k.z + dd_dp.z*k.y));
+			atomicAdd(&dL_KWH_t[global_id][1][1], dL_dd * (dd_dp.x*k.z - dd_dp.z*k.x));
+			atomicAdd(&dL_KWH_t[global_id][2][1], dL_dd * (-dd_dp.x*k.y + dd_dp.y*k.x));
 
-			// Update gradients w.r.t. 2D covariance (2x2 matrix, symmetric)
-			atomicAdd(&dL_dconic2D[global_id].x, -0.5f * gdx * d.x * dL_dG);
-			atomicAdd(&dL_dconic2D[global_id].y, -0.5f * gdx * d.y * dL_dG);
-			atomicAdd(&dL_dconic2D[global_id].w, -0.5f * gdy * d.y * dL_dG);
+			atomicAdd(&dL_KWH_t[global_id][0][3], dL_dd * (dd_dp.y * (-x*l.z + y*k.z) + dd_dp.z * (x*l.y - y*k.y)));
+			atomicAdd(&dL_KWH_t[global_id][1][3], dL_dd * (dd_dp.x * (x*l.z - y*k.z) + dd_dp.z * (-x*l.x + y*k.x)));
+			atomicAdd(&dL_KWH_t[global_id][2][3], dL_dd * (dd_dp.x * (-x*l.y + y*k.y) + dd_dp.y * (x*l.x - y*k.x)));
+
+
+			// const float gdx = G * d.x;
+			// const float gdy = G * d.y;
+			// const float dG_ddelx = -gdx * con_o.x - gdy * con_o.y;
+			// const float dG_ddely = -gdy * con_o.z - gdx * con_o.y;
+
+			// // Update gradients w.r.t. 2D mean position of the Gaussian
+			// // ddelx_dx = 0.5 * W
+			// atomicAdd(&dL_dmean2D[global_id].x, dL_dG * dG_ddelx * ddelx_dx); 
+			// atomicAdd(&dL_dmean2D[global_id].y, dL_dG * dG_ddely * ddely_dy);
+
+			// // Update gradients w.r.t. 2D covariance (2x2 matrix, symmetric)
+			// atomicAdd(&dL_dconic2D[global_id].x, -0.5f * gdx * d.x * dL_dG); //a
+			// atomicAdd(&dL_dconic2D[global_id].y, -0.5f * gdx * d.y * dL_dG); //b
+			// atomicAdd(&dL_dconic2D[global_id].w, -0.5f * gdy * d.y * dL_dG); //c
 
 			// Update gradients w.r.t. opacity of the Gaussian
 			atomicAdd(&(dL_dopacity[global_id]), G * dL_dalpha);
@@ -589,17 +724,18 @@ void BACKWARD::preprocess(
 	const glm::vec3* scales,
 	const glm::vec4* rotations,
 	const float scale_modifier,
-	const float* cov3Ds,
-	const float* viewmatrix,
-	const float* projmatrix,
-	const float focal_x, float focal_y,
-	const float tan_fovx, float tan_fovy,
+	// const float* cov3Ds,
+	const glm::mat4* viewmatrix,
+	const glm::mat4* projmatrix,
+	// const float focal_x, float focal_y,
+	// const float tan_fovx, float tan_fovy,
 	const glm::vec3* campos,
+	const glm::mat3x4* dL_KWH_t,
 	const float3* dL_dmean2D,
-	const float* dL_dconic,
+	// const float* dL_dconic,
 	glm::vec3* dL_dmean3D,
 	float* dL_dcolor,
-	float* dL_dcov3D,
+	// float* dL_dcov3D,
 	float* dL_dsh,
 	glm::vec3* dL_dscale,
 	glm::vec4* dL_drot)
@@ -614,19 +750,19 @@ void BACKWARD::preprocess(
 	// Somewhat long, thus it is its own kernel rather than being part of 
 	// "preprocess". When done, loss gradient w.r.t. 3D means has been
 	// modified and gradient w.r.t. 3D covariance matrix has been computed.	
-	computeCov2DCUDA << <(P + 255) / 256, 256 >> > (
-		P,
-		means3D,
-		radii,
-		cov3Ds,
-		focal_x,
-		focal_y,
-		tan_fovx,
-		tan_fovy,
-		viewmatrix,
-		dL_dconic,
-		(float3*)dL_dmean3D,
-		dL_dcov3D);
+	// computeCov2DCUDA << <(P + 255) / 256, 256 >> > (
+	// 	P,
+	// 	means3D,
+	// 	radii,
+	// 	// cov3Ds,
+	// 	focal_x,
+	// 	focal_y,
+	// 	tan_fovx,
+	// 	tan_fovy,
+	// 	viewmatrix,
+	// 	dL_dconic,
+	// 	(float3*)dL_dmean3D,
+	// 	dL_dcov3D);
 
 	// Propagate gradients for remaining steps: finish 3D mean gradients,
 	// propagate color gradients to SH (if desireD), propagate 3D covariance
@@ -640,12 +776,14 @@ void BACKWARD::preprocess(
 		(glm::vec3*)scales,
 		(glm::vec4*)rotations,
 		scale_modifier,
+		viewmatrix,
 		projmatrix,
 		campos,
+		dL_KWH_t,
 		(float3*)dL_dmean2D,
 		(glm::vec3*)dL_dmean3D,
 		dL_dcolor,
-		dL_dcov3D,
+		// dL_dcov3D,
 		dL_dsh,
 		dL_dscale,
 		dL_drot);
@@ -658,13 +796,15 @@ void BACKWARD::render(
 	int W, int H,
 	const float* bg_color,
 	const float2* means2D,
+	const glm::mat3x4* KWH_t,
 	const float4* conic_opacity,
 	const float* colors,
 	const float* final_Ts, // accum_alpha
 	const uint32_t* n_contrib,
 	const float* dL_dpixels,
-	float3* dL_dmean2D,
-	float4* dL_dconic2D,
+	glm::mat3x4* dL_KWH_t,
+	// float3* dL_dmean2D,
+	// float4* dL_dconic2D,
 	float* dL_dopacity,
 	float* dL_dcolors)
 {
@@ -674,13 +814,15 @@ void BACKWARD::render(
 		W, H,
 		bg_color,
 		means2D,
+		KWH_t,
 		conic_opacity,
 		colors,
 		final_Ts,
 		n_contrib,
 		dL_dpixels,
-		dL_dmean2D,
-		dL_dconic2D,
+		dL_KWH_t,
+		// dL_dmean2D,
+		// dL_dconic2D,
 		dL_dopacity,
 		dL_dcolors
 		);
