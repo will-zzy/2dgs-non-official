@@ -625,7 +625,7 @@ renderCUDA(
 			const glm::vec3 l = -T_t[1] + pixf.y * T_t[3]; // hv
 			const glm::vec3 point = glm::cross(k,l); 
 			const float dist3d = (point.x * point.x + point.y * point.y) / (point.z * point.z);
-			if (dist3d > 3.0f)
+			if (dist3d > 1.0f)
 				continue;
 			const float G = exp(-0.5 * dist3d);
 

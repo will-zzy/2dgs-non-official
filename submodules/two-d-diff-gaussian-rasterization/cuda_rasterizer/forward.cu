@@ -139,7 +139,7 @@ __device__ float computeLocalGaussian(
 
 	// float dist = min(dist2d,dist3d); // 1/2/3 sigma以内保留
 	float dist = dist3d;
-	if (dist > 3.0f) return 0.0f;
+	if (dist > 1.0f) return 0.0f;
 
 
 	return exp(-0.5 * dist);
@@ -221,7 +221,12 @@ __device__ float computeLocalGaussian(
 
 
 
-
+__device__ void print_matrix3x3(glm::mat3 M){
+	printf("%f, %f, %f\n%f, %f, %f\n%f, %f, %f\n\n", 
+	M[0][0],M[0][1],M[0][2],
+	M[1][0],M[1][1],M[1][2],
+	M[2][0],M[2][1],M[2][2]);
+}
 
 __device__ void compute2DGSBBox(
 	const glm::mat4 viewmatrix, //w2c.T
@@ -290,9 +295,9 @@ __device__ void compute2DGSBBox(
 	// 	glm::dot(temp_point,T_t[2] * T_t[2])
 	// );
 	// cout << glm::to_string(*T) << endl;
-	float2 radi = { // 两根之差的平方
-		glm::sqrt(glm::clamp(radius_square.x,0.0001f,10000.0f)),
-		glm::sqrt(glm::clamp(radius_square.y,0.0001f,10000.0f))
+	float2 radi = { // 两根之差/2的平方
+		glm::sqrt(max(radius_square.x,0.0001f)),
+		glm::sqrt(max(radius_square.y,0.0001f))
 	};
 	radii[0] = radi.x;
 	radii[1] = radi.y;
@@ -381,7 +386,8 @@ __global__ void preprocessCUDA(int P, int D, int M, // 计算2dgs的radii，并�
 	// float lambda2 = mid - sqrt(max(0.1f, mid * mid - det));
 	// float my_radius = ceil(3.f * sqrt(max(lambda1, lambda2)));
 	// float2 point_image = { ndc2Pix(p_proj.x, W), ndc2Pix(p_proj.y, H) };
-	float my_radius = sqrt(radii[2 * idx]*radii[2 * idx] + radii[2 * idx + 1]*radii[2 * idx + 1]);
+	// float my_radius = sqrt(radii[2 * idx]*radii[2 * idx] + radii[2 * idx + 1]*radii[2 * idx + 1]);
+	float my_radius = max(radii[2 * idx], radii[2 * idx + 1]);
 	uint2 rect_min, rect_max;
 	getRect(points_xy_image[idx], my_radius, rect_min, rect_max, grid); // point_image为高斯的投影点
 	if ((rect_max.x - rect_min.x) * (rect_max.y - rect_min.y) == 0)
