@@ -290,6 +290,8 @@ __global__ void computeCov2DCUDA(int P,
 	dL_dmeans[idx] = dL_dmean;
 }
 
+
+
 // Backward pass for the conversion of scale and rotation to a 
 // 3D covariance matrix for each Gaussian. 
 __device__ void computeCov3D(int idx, const glm::vec3 scale, float mod, const glm::vec4 rot, const float* dL_dcov3Ds, glm::vec3* dL_dscales, glm::vec4* dL_drots)
@@ -357,24 +359,39 @@ __device__ void computeCov3D(int idx, const glm::vec3 scale, float mod, const gl
 	*dL_drot = float4{ dL_dq.x, dL_dq.y, dL_dq.z, dL_dq.w };//dnormvdv(float4{ rot.x, rot.y, rot.z, rot.w }, float4{ dL_dq.x, dL_dq.y, dL_dq.z, dL_dq.w });
 }
 
+__device__ void print_matrix3x3(glm::mat4 m){
+
+	printf("%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f\n",
+		m[0][0],m[0][1],m[0][2],m[0][3],
+		m[1][0],m[1][1],m[1][2],m[1][3],
+		m[2][0],m[2][1],m[2][2],m[2][3],
+		m[3][0],m[3][1],m[3][2],m[3][3]
+		
+	);
+}
+
+
+
 __device__ void compute2DGSBBox(
 	const glm::mat4 W2C_T, // w2c.T
 	const glm::mat4 projmatrix, // intrinsic.T
 	const glm::vec4 quaternion,
 	const glm::vec3 scale,
 	const glm::mat3x4 dL_KWH_t,
+	glm::vec3* dL_dmean2D,
 	glm::vec3* dL_dmeans,
 	glm::vec3* dL_dscale,
 	glm::vec4* dL_drot
 ){
 	// glm::mat4x3 dL_KWH = glm::transpose(dL_KWH_t);
 	float fx = projmatrix[0][0];
-	float fy = projmatrix[2][0];
-	float cx = projmatrix[1][1];
+	float fy = projmatrix[1][1];
+	float cx = projmatrix[2][0];
 	float cy = projmatrix[2][1];
-	glm::mat3x4 dL_dM(0.0f); 
-	
+	// print_matrix3x3(projmatrix);
+	// printf("%f,%f,%f,%f\n\n",fx,fy,cx,cy);
 
+	glm::mat3x4 dL_dM(0.0f); 
 	// T = K @ M
 	dL_dM[0][0] = fx * dL_KWH_t[0][0];
 	dL_dM[1][0] = fx * dL_KWH_t[1][0];
@@ -384,14 +401,25 @@ __device__ void compute2DGSBBox(
 	dL_dM[1][1] = fy * dL_KWH_t[1][1];
 	dL_dM[2][1] = fy * dL_KWH_t[2][1];
 	
-	dL_dM[0][2] = cx*dL_KWH_t[0][0] + cy*dL_KWH_t[0][1] + dL_KWH_t[0][2] + dL_KWH_t[0][3];
-	dL_dM[1][2] = cx*dL_KWH_t[1][0] + cy*dL_KWH_t[1][1] + dL_KWH_t[1][2] + dL_KWH_t[1][3];
-	dL_dM[2][2] = cx*dL_KWH_t[2][0] + cy*dL_KWH_t[2][1] + dL_KWH_t[2][2] + dL_KWH_t[2][3];
+	// dL_dM[0][2] = cx*dL_KWH_t[0][0] + cy*dL_KWH_t[0][1] + dL_KWH_t[0][2] + dL_KWH_t[0][3];
+	// dL_dM[1][2] = cx*dL_KWH_t[1][0] + cy*dL_KWH_t[1][1] + dL_KWH_t[1][2] + dL_KWH_t[1][3];
+	// dL_dM[2][2] = cx*dL_KWH_t[2][0] + cy*dL_KWH_t[2][1] + dL_KWH_t[2][2] + dL_KWH_t[2][3];
+	
+	dL_dM[0][2] = cx*dL_KWH_t[0][0] + cy*dL_KWH_t[0][1] + dL_KWH_t[0][3];
+	dL_dM[1][2] = cx*dL_KWH_t[1][0] + cy*dL_KWH_t[1][1] + dL_KWH_t[1][3];
+	dL_dM[2][2] = cx*dL_KWH_t[2][0] + cy*dL_KWH_t[2][1] + dL_KWH_t[2][3];
 
 	// M[2,0:3] = p
 	dL_dmeans->x = dL_dM[2][0];
 	dL_dmeans->y = dL_dM[2][1];
 	dL_dmeans->z = dL_dM[2][2];
+
+	
+
+
+
+
+
 	
 	// Y = uv_view = H @ W
 	glm::mat3 dL_dH(0.0f);
@@ -411,12 +439,20 @@ __device__ void compute2DGSBBox(
 	float y = quaternion.z;
 	float z = quaternion.w;
 	
-	glm::mat3 R_t = glm::transpose(glm::mat3(// 每一列是一个向量
+	glm::mat3 R_t = glm::transpose(glm::mat3(// 每一行是一个向量
 		1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
 		2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
 		2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
 	));
+	// 将质心的梯度投影到像素平面上
+
+
+	*dL_dmean2D = R_t * (*dL_dmeans);
+	dL_dmean2D->x = (dL_dmean2D->x * fx + dL_dmean2D->z * cx) / dL_dmean2D->z;
+	dL_dmean2D->y = (dL_dmean2D->y * fy + dL_dmean2D->z * cy) / dL_dmean2D->z;
 	
+
+
 	dL_dscale->x = dL_dH[0][0]*R_t[0][0] + dL_dH[0][1]*R_t[0][1] + dL_dH[0][2]*R_t[0][2];
 	dL_dscale->y = dL_dH[1][0]*R_t[1][0] + dL_dH[1][1]*R_t[1][1] + dL_dH[1][2]*R_t[1][2];
 	dL_dscale->z = 0.0f;
@@ -452,7 +488,7 @@ __global__ void preprocessCUDA(
 	const glm::mat4* projmatrix, // intrinsic.T
 	const glm::vec3* campos,
 	const glm::mat3x4* dL_KWH_t,
-	const float3* dL_dmean2D,
+	glm::vec3* dL_dmean2D,
 	glm::vec3* dL_dmeans, // 对质心的导数
 	float* dL_dcolor,
 	// float* dL_dcov3D,
@@ -477,10 +513,12 @@ __global__ void preprocessCUDA(
 		rotations[idx],
 		scales[idx],
 		dL_KWH_t[idx],
+		dL_dmean2D + idx,
 		dL_dmeans + idx,
 		dL_dscale + idx,
 		dL_drot + idx
 	);
+	
 	
 
 	// Taking care of gradients from the screenspace points
@@ -526,7 +564,7 @@ renderCUDA(
 	const uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ dL_dpixels, //dl/dc
 	glm::mat3x4* __restrict__ dL_KWH_t,
-	// float3* __restrict__ dL_dmean2D,
+	glm::vec3* __restrict__ dL_dmean2D,
 	// float4* __restrict__ dL_dconic2D,
 	float* __restrict__ dL_dopacity,
 	float* __restrict__ dL_dcolors)
@@ -670,27 +708,27 @@ renderCUDA(
 			// Helpful reusable temporary variables
 			const float dL_dG = con_o.w * dL_dalpha; // dl/dg_i
 			// 需要计算k,l,dd_dp,dL_dd
-			const float dL_dd = -G * dist3d / 2;
+			const float dL_dd = -G / 2;
 			const float p3_p3 = point.z * point.z;
 			const glm::vec3 dd_dp = {
 				2 * point.x / p3_p3, 
 				2 * point.y / p3_p3,
-				-2 * (point.x * point.x + point.y * point.y) / p3_p3	
+				-2 * (point.x * point.x + point.y * point.y) / (p3_p3 * point.z)	
 			};
 			float x = pixf.x;
 			float y = pixf.y;
 			
-			atomicAdd(&dL_KWH_t[global_id][0][0], dL_dd * (dd_dp.y*l.z - dd_dp.z*l.y));
-			atomicAdd(&dL_KWH_t[global_id][1][0], dL_dd * (-dd_dp.x*l.z + dd_dp.z*l.x));
-			atomicAdd(&dL_KWH_t[global_id][2][0], dL_dd * (dd_dp.x*l.y - dd_dp.y*l.x));
+			atomicAdd(&dL_KWH_t[global_id][0][0], dL_dd * ( dd_dp.y * l.z - dd_dp.z * l.y));
+			atomicAdd(&dL_KWH_t[global_id][1][0], dL_dd * (-dd_dp.x * l.z + dd_dp.z * l.x));
+			atomicAdd(&dL_KWH_t[global_id][2][0], dL_dd * ( dd_dp.x * l.y - dd_dp.y * l.x));
 
-			atomicAdd(&dL_KWH_t[global_id][0][1], dL_dd * (-dd_dp.y*k.z + dd_dp.z*k.y));
-			atomicAdd(&dL_KWH_t[global_id][1][1], dL_dd * (dd_dp.x*k.z - dd_dp.z*k.x));
-			atomicAdd(&dL_KWH_t[global_id][2][1], dL_dd * (-dd_dp.x*k.y + dd_dp.y*k.x));
+			atomicAdd(&dL_KWH_t[global_id][0][1], dL_dd * (-dd_dp.y * k.z + dd_dp.z * k.y));
+			atomicAdd(&dL_KWH_t[global_id][1][1], dL_dd * ( dd_dp.x * k.z - dd_dp.z * k.x));
+			atomicAdd(&dL_KWH_t[global_id][2][1], dL_dd * (-dd_dp.x * k.y + dd_dp.y * k.x));
 
-			atomicAdd(&dL_KWH_t[global_id][0][3], dL_dd * (dd_dp.y * (-x*l.z + y*k.z) + dd_dp.z * (x*l.y - y*k.y)));
-			atomicAdd(&dL_KWH_t[global_id][1][3], dL_dd * (dd_dp.x * (x*l.z - y*k.z) + dd_dp.z * (-x*l.x + y*k.x)));
-			atomicAdd(&dL_KWH_t[global_id][2][3], dL_dd * (dd_dp.x * (-x*l.y + y*k.y) + dd_dp.y * (x*l.x - y*k.x)));
+			atomicAdd(&dL_KWH_t[global_id][0][3], dL_dd * (dd_dp.y * ( x * l.z - y * k.z) + dd_dp.z * (-x * l.y + y * k.y)));
+			atomicAdd(&dL_KWH_t[global_id][1][3], dL_dd * (dd_dp.x * (-x * l.z + y * k.z) + dd_dp.z * ( x * l.x - y * k.x)));
+			atomicAdd(&dL_KWH_t[global_id][2][3], dL_dd * (dd_dp.x * ( x * l.y - y * k.y) + dd_dp.y * (-x * l.x + y * k.x)));
 
 
 			// const float gdx = G * d.x;
@@ -731,7 +769,7 @@ void BACKWARD::preprocess(
 	// const float tan_fovx, float tan_fovy,
 	const glm::vec3* campos,
 	const glm::mat3x4* dL_KWH_t,
-	const float3* dL_dmean2D,
+	glm::vec3* dL_dmean2D,
 	// const float* dL_dconic,
 	glm::vec3* dL_dmean3D,
 	float* dL_dcolor,
@@ -780,7 +818,7 @@ void BACKWARD::preprocess(
 		projmatrix,
 		campos,
 		dL_KWH_t,
-		(float3*)dL_dmean2D,
+		dL_dmean2D,
 		(glm::vec3*)dL_dmean3D,
 		dL_dcolor,
 		// dL_dcov3D,
@@ -803,7 +841,7 @@ void BACKWARD::render(
 	const uint32_t* n_contrib,
 	const float* dL_dpixels,
 	glm::mat3x4* dL_KWH_t,
-	// float3* dL_dmean2D,
+	glm::vec3* dL_dmean2D,
 	// float4* dL_dconic2D,
 	float* dL_dopacity,
 	float* dL_dcolors)
@@ -821,7 +859,7 @@ void BACKWARD::render(
 		n_contrib,
 		dL_dpixels,
 		dL_KWH_t,
-		// dL_dmean2D,
+		dL_dmean2D,
 		// dL_dconic2D,
 		dL_dopacity,
 		dL_dcolors

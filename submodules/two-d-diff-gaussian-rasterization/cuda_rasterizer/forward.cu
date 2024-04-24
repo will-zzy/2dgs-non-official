@@ -234,6 +234,7 @@ __device__ void compute2DGSBBox(
 	const glm::vec4 quaternion,
 	const glm::vec3 scale,
 	const float* p, // 高斯质心
+	glm::vec4* p_view
 	float* normal,
 	float* radii,
 	float2* point_image,
@@ -247,7 +248,7 @@ __device__ void compute2DGSBBox(
 	
 	// cout << glm::determinant(rotation) << endl;
 	glm::vec4 means3D = glm::vec4(p[0],p[1],p[2],1.0f);
-	glm::vec4 p_view = viewmatrix * means3D; // 在后的为行向量
+	*p_view = viewmatrix * means3D; // 相机坐标系下的高斯点
 	// 计算深度用p_view
 
 	glm::mat3 viewmatrix_R = makeMat3FromMat4(viewmatrix); 
@@ -371,6 +372,7 @@ __global__ void preprocessCUDA(int P, int D, int M, // 计算2dgs的radii，并�
 		rotations[idx],
 		scales[idx],
 		orig_points + 3 * idx,
+		&p_view,
 		normals + 3 * idx,
 		radii + 2 * idx,
 		points_xy_image + idx,

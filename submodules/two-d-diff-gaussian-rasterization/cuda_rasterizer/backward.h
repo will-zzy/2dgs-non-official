@@ -34,7 +34,7 @@ namespace BACKWARD
 		const uint32_t* n_contrib,
 		const float* dL_dpixels,
 		glm::mat3x4* dL_KWH_t,
-		// float3* dL_dmean2D,
+		glm::vec3* dL_dmean2D,
 		// float4* dL_dconic2D,
 		float* dL_dopacity,
 		float* dL_dcolors);
@@ -55,7 +55,7 @@ namespace BACKWARD
 		// const float tan_fovx, float tan_fovy,
 		const glm::vec3* campos,
 		const glm::mat3x4* dL_KWH_t,
-		const float3* dL_dmean2D,
+		glm::vec3* dL_dmean2D,
 		// const float* dL_dconics,
 		glm::vec3* dL_dmeans,
 		float* dL_dcolor,

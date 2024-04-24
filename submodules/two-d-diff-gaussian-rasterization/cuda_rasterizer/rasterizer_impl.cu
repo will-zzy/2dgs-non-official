@@ -446,7 +446,7 @@ void CudaRasterizer::Rasterizer::backward(
 		imgState.n_contrib,
 		dL_dpix, // 输入
 		(glm::mat3x4*)dL_KWH_t, // 输出
-		// (float3*)dL_dmean2D, // 输出
+		(glm::vec3*)dL_dmean2D, // 输出
 		// (float4*)dL_dconic, // 输出
 		dL_dopacity, // 输出
 		dL_dcolor // 输出
@@ -472,7 +472,7 @@ void CudaRasterizer::Rasterizer::backward(
 		// tan_fovx, tan_fovy,
 		(glm::vec3*)campos,
 		(glm::mat3x4*)dL_KWH_t,
-		(float3*)dL_dmean2D,
+		(glm::vec3*)dL_dmean2D,
 		// dL_dconic,
 		(glm::vec3*)dL_dmean3D,
 		dL_dcolor,

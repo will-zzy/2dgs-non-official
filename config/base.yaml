@@ -1,7 +1,7 @@
 
 
 # case_name: sheep55-ngptest
-case_name: truck
+# case_name: truck
 # case_name: ObliqueSBY1580
 # root_dir: /data3/zzy/public_data/${case_name}
 # root_dir: /data3/zzy/data_lab/${case_name}
@@ -36,7 +36,7 @@ gs_model:
   model_path:
   load_iteration: false
   sh_degree: 3
-  
+  init_rots: true
   images: "images"
   downsample: ${dataset.downsample}
   # resolution: -1
@@ -50,13 +50,13 @@ optimizer:
   position_lr_delay_mult: 0.01
   position_lr_max_steps: 30_00
   feature_lr: 2.5e-3
-  opacity_lr: 5.e-2
+  opacity_lr: 5.e-2 # 5.e-2
   scaling_lr: 5.e-3
   rotation_lr: 1.e-3
   percent_dense: 1.e-2
-  densification_interval: 100
+  densification_interval: 300
   opacity_reset_interval: 3000
-  densify_from_iter: 500
+  densify_from_iter: 200 # 500
   densify_until_iter: 15000
   densify_grad_threshold: 2.e-4
   random_background: false

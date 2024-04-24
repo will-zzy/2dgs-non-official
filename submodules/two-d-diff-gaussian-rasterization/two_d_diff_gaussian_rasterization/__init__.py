@@ -142,7 +142,8 @@ class _RasterizeGaussians(torch.autograd.Function):
                 raise ex
         else:
             grad_means2D, grad_colors_precomp, grad_opacities, grad_means3D, grad_sh, grad_scales, grad_rotations = _C.rasterize_gaussians_backward(*args)
-
+        # import pdb
+        # pdb.set_trace()
         grads = (
             grad_means3D,
             grad_means2D,

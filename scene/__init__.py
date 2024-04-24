@@ -104,7 +104,7 @@ class Scene:
                                                            "iteration_" + str(self.loaded_iter),
                                                            "point_cloud.ply"))
         else:
-            self.gaussians.create_from_pcd(self.scene_info.point_cloud, self.cameras_extent,init_rots=True)
+            self.gaussians.create_from_pcd(self.scene_info.point_cloud, self.cameras_extent,init_rots=self.config.gs_model.init_rots)
 
     def load_cam(self):
         if os.path.exists(os.path.join(self.config.root_dir, "sparse")):
@@ -138,11 +138,15 @@ class Scene:
                 img_wh = int(distorted.shape[1]*self.img_downsample), int(distorted.shape[0]*self.img_downsample)   # W,H,3
 
                 
-                if self.config.dataset.undistortion and models[img_idx+1].model in ["OPENCV"]:
-                    K,distortion = params_from_models(models[img_idx+1].params)
-                    undistorted = cv2.undistort(distorted,
-                                                K,
-                                                distortion)
+                if self.config.dataset.undistortion and models[1].model in ["OPENCV"]:
+                    try:
+                    # if self.config.dataset.undistortion and models[img_idx+1].model in ["OPENCV"]:
+                        K,distortion = params_from_models(models[img_idx+1].params)
+                        undistorted = cv2.undistort(distorted,
+                                                    K,
+                                                    distortion)
+                    except:
+                        undistorted = distorted
                 else:
                     undistorted = distorted
                     
