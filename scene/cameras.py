@@ -61,6 +61,8 @@ class Camera(nn.Module):
         self.trans = trans
         self.scale = scale
         
+        
+        ### Here_is_demo ###
         def get_cameras():
             intrins = torch.tensor([[711.1111,   0.0000, 256.0000,   0.0000],
                        [  0.0000, 711.1111, 256.0000,   0.0000],
@@ -85,6 +87,10 @@ class Camera(nn.Module):
         self.projection_matrix = projmat
         self.cam_intr = torch.tensor([intrins[0,0],intrins[0,0],intrins[0,2],intrins[0,2]],dtype=torch.float32,device=data_device)
         self.camera_center = self.world_view_transform.inverse()[3, :3]
+        ### Here_is_demo ###
+        
+        
+        ### Here_is_origin_code ###
         
         # self.world_view_transform = torch.tensor(getWorld2View2(self.R, self.T, trans, scale)).transpose(0, 1).cuda()
         # self.projection_matrix = getProjectionMatrix(znear=self.znear, 
@@ -97,6 +103,8 @@ class Camera(nn.Module):
         # self.full_proj_transform = (self.world_view_transform.unsqueeze(0).bmm(self.projection_matrix.unsqueeze(0))).squeeze(0)
         # self.camera_center = self.world_view_transform.inverse()[3, :3]
     
+        ### Here_is_origin_code ###
+        
     @property
     def get_image(self):
         if self.image_type == "all":

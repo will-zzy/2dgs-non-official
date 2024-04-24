@@ -96,9 +96,13 @@ class GaussianModel:
 
     @property
     def get_scaling(self):
+        ### Here_is_origin_code ###
         # return self.scaling_activation(self._scaling)
+        ### Here_is_origin_code ###
+        
+        ### Here_is_demo ###
         return self._scaling
-    
+        ### Here_is_demo ###
     @property
     def get_rotation(self):
         return self.rotation_activation(self._rotation)
@@ -115,9 +119,13 @@ class GaussianModel:
     
     @property
     def get_opacity(self):
+        ### Here_is_origin_code ###
         # return self.opacity_activation(self._opacity)
+        ### Here_is_origin_code ###
+        
+        ### Here_is_demo ###
         return self._opacity
-    
+        ### Here_is_demo ###
     def get_covariance(self, scaling_modifier = 1):
         return self.covariance_activation(self.get_scaling, scaling_modifier, self._rotation)
 
@@ -158,7 +166,8 @@ class GaussianModel:
         
         opacities = inverse_sigmoid(0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
 
-
+        ### Here_is_demo ###
+        
         def get_inputs(num_points=8):
             length = 0.5
             x = np.linspace(-1, 1, num_points) * length
@@ -178,6 +187,12 @@ class GaussianModel:
         self._rotation = nn.Parameter(quats.requires_grad_(True))
         self._opacity = nn.Parameter(torch.ones_like(means3D[:,:1]).requires_grad_(True))
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
+       
+        ### Here_is_demo ###
+        
+        
+        
+        ### Here_is_origin_code ###
         
         # self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
         # self._features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(True))
@@ -187,7 +202,7 @@ class GaussianModel:
         # self._opacity = nn.Parameter(opacities.requires_grad_(True))
         # self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
         
-        
+        ### Here_is_origin_code ###
         
 
     def training_setup(self, training_args):
