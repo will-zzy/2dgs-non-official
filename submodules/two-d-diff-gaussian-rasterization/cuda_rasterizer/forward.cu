@@ -130,7 +130,7 @@ __device__ float computeLocalGaussian(
 	float dist3d = point.x * point.x + point.y * point.y;
 
 	// float g = exp(- (u * u + v * v) / 2);
-	float coff = 1 / sqrt(2)/2;
+	float coff = 1 / (sqrt(2) / 2);
 
 	glm::vec2 offset = glm::vec2(center.x - point_image.x, center.y - point_image.y);
 	float dist2d = coff * glm::length(offset);
@@ -234,7 +234,7 @@ __device__ void compute2DGSBBox(
 	const glm::vec4 quaternion,
 	const glm::vec3 scale,
 	const float* p, // 高斯质心
-	glm::vec4* p_view
+	glm::vec4* p_view, // 已经算过了
 	float* normal,
 	float* radii,
 	float2* point_image,
@@ -247,8 +247,8 @@ __device__ void compute2DGSBBox(
 	normal[2] = rotation[2][2] / scale.z;
 	
 	// cout << glm::determinant(rotation) << endl;
-	glm::vec4 means3D = glm::vec4(p[0],p[1],p[2],1.0f);
-	*p_view = viewmatrix * means3D; // 相机坐标系下的高斯点
+	// glm::vec4 means3D = glm::vec4(p[0],p[1],p[2],1.0f);
+	// *p_view = viewmatrix * means3D; // 相机坐标系下的高斯点
 	// 计算深度用p_view
 
 	glm::mat3 viewmatrix_R = makeMat3FromMat4(viewmatrix); 
@@ -260,7 +260,7 @@ __device__ void compute2DGSBBox(
 	glm::mat3x4 M = glm::mat3x4(
 		uv_view[0][0], 	uv_view[0][1], 	uv_view[0][2], 	0.0f,
 		uv_view[1][0], 	uv_view[1][1], 	uv_view[1][2], 	0.0f,
-		p_view.x,		p_view.y,		p_view.z,		1.0f
+		p_view->x,		p_view->y,		p_view->z,		1.0f
 	);
 
 	glm::mat3x4 T_o = (projmatrix) * M;

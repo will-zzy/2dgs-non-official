@@ -2,10 +2,11 @@
 
 # case_name: sheep55-ngptest
 # case_name: truck
+case_name: scan65
 # case_name: ObliqueSBY1580
-# root_dir: /data3/zzy/public_data/${case_name}
+root_dir: /data3/zzy/public_data/${case_name}
 # root_dir: /data3/zzy/data_lab/${case_name}
-root_dir: /data3/zzy/public_data/tankandtemples/intermediate/Family
+# root_dir: /data3/zzy/public_data/tankandtemples/intermediate/Family
 # /data3/zzy/public_data/truck
 
 pipeline:
@@ -19,7 +20,7 @@ dataset:
   undistortion: True
   downsample: 0.8
   eval: False
-  val_every_train_img_batch: 28
+  val_every_train_img_batch: 48
   resolution: -1
   data_device: cuda
   white_background: false
@@ -51,12 +52,12 @@ optimizer:
   position_lr_max_steps: 30_00
   feature_lr: 2.5e-3
   opacity_lr: 5.e-2 # 5.e-2
-  scaling_lr: 5.e-3
+  scaling_lr: 5.e-4 # 5.e-3
   rotation_lr: 1.e-3
   percent_dense: 1.e-2
-  densification_interval: 300
-  opacity_reset_interval: 3000
-  densify_from_iter: 200 # 500
+  densification_interval: 100 # 100
+  opacity_reset_interval: 1000 # 3000
+  densify_from_iter: 100 # 500
   densify_until_iter: 15000
   densify_grad_threshold: 2.e-4
   random_background: false

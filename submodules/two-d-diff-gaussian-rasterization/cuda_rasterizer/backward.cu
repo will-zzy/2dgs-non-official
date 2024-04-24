@@ -457,10 +457,10 @@ __device__ void compute2DGSBBox(
 	dL_dscale->y = dL_dH[1][0]*R_t[1][0] + dL_dH[1][1]*R_t[1][1] + dL_dH[1][2]*R_t[1][2];
 	dL_dscale->z = 0.0f;
 	// q = r, x, y, z
-	dL_dH[0] /= scale.x;
-	dL_dH[1] /= scale.y;
-	dL_dH[2] /= scale.z;
-	
+	dL_dH[0] *= scale.x;
+	dL_dH[1] *= scale.y;
+	dL_dH[2] *= scale.z;
+	// 此处变为dL_dR
 
 
 	dL_drot->x = 2*x*dL_dH[1][2] - 2*y*dL_dH[0][2] + 2*z*(dL_dH[0][1]-dL_dH[1][0]);
@@ -577,6 +577,8 @@ renderCUDA(
 	const uint2 pix = { pix_min.x + block.thread_index().x, pix_min.y + block.thread_index().y };
 	const uint32_t pix_id = W * pix.y + pix.x;
 	const float2 pixf = { (float)pix.x, (float)pix.y };
+	const float coff = 1 / (sqrt(2) / 2);
+
 
 	const bool inside = pix.x < W&& pix.y < H;
 	const uint2 range = ranges[block.group_index().y * horizontal_blocks + block.group_index().x];

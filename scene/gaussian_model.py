@@ -96,7 +96,8 @@ class GaussianModel:
 
     @property
     def get_scaling(self):
-        return self.scaling_activation(self._scaling)
+        # return self.scaling_activation(self._scaling)
+        return self._scaling
     
     @property
     def get_rotation(self):
@@ -114,7 +115,8 @@ class GaussianModel:
     
     @property
     def get_opacity(self):
-        return self.opacity_activation(self._opacity)
+        # return self.opacity_activation(self._opacity)
+        return self._opacity
     
     def get_covariance(self, scaling_modifier = 1):
         return self.covariance_activation(self.get_scaling, scaling_modifier, self._rotation)
@@ -154,20 +156,36 @@ class GaussianModel:
         # np.savetxt("./quater.txt",fused_normal)
         
         
-        
+        opacities = inverse_sigmoid(0.1 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
 
-        opacities = inverse_sigmoid(0.02 * torch.ones((fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"))
 
-        self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
-        self._features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(True))
-        self._features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(True))
+        def get_inputs(num_points=8):
+            length = 0.5
+            x = np.linspace(-1, 1, num_points) * length
+            y = np.linspace(-1, 1, num_points) * length
+            x, y = np.meshgrid(x, y)
+            means3D = torch.from_numpy(np.stack([x,y, 0 * np.random.rand(*x.shape)], axis=-1).reshape(-1,3)).cuda().float()
+            quats = torch.zeros(1,4).repeat(len(means3D), 1).cuda()
+            quats[..., 0] = 1.
+            scale = length /(num_points-1)
+            scales = torch.zeros(1,3).repeat(len(means3D), 1).fill_(scale).cuda()
+            return means3D, scales, quats
+        means3D, scales, quats = get_inputs(num_points=3)
+        self._xyz = nn.Parameter(means3D.requires_grad_(True))
+        self._features_dc = nn.Parameter(features[:64,:,0:1].transpose(1, 2).contiguous().requires_grad_(True))
+        self._features_rest = nn.Parameter(features[:64,:,1:].transpose(1, 2).contiguous().requires_grad_(True))
         self._scaling = nn.Parameter(scales.requires_grad_(True))
-        self._rotation = nn.Parameter(rots.requires_grad_(True))
-        self._opacity = nn.Parameter(opacities.requires_grad_(True))
+        self._rotation = nn.Parameter(quats.requires_grad_(True))
+        self._opacity = nn.Parameter(torch.ones_like(means3D[:,:1]).requires_grad_(True))
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
         
-        normals = pcd.normals
-        
+        # self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
+        # self._features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(True))
+        # self._features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(True))
+        # self._scaling = nn.Parameter(scales.requires_grad_(True))
+        # self._rotation = nn.Parameter(rots.requires_grad_(True))
+        # self._opacity = nn.Parameter(opacities.requires_grad_(True))
+        # self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
         
         
         

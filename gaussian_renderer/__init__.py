@@ -34,8 +34,10 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
 
     raster_settings = GaussianRasterizationSettings(
-        image_height=int(viewpoint_camera.resolution[1]),
-        image_width=int(viewpoint_camera.resolution[0]),
+        # image_height=int(viewpoint_camera.resolution[1]),
+        # image_width=int(viewpoint_camera.resolution[0]),
+        image_height=512,
+        image_width=512,
         tanfovx=tanfovx,
         tanfovy=tanfovy,
         bg=bg_color,
@@ -72,6 +74,14 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     # from SHs in Python, do it. If not, then SH -> RGB conversion will be done by rasterizer.
     shs = None
     colors_precomp = None
+    
+    import matplotlib
+    import numpy as np 
+    override_color = matplotlib.colormaps['Accent'](np.random.randint(1,64, 64)/64)[..., :3]
+    override_color = np.zeros([9,3])
+    override_color[:,0] = 1.
+    override_color = torch.from_numpy(override_color).cuda().float()
+    
     if override_color is None:
         if pipe.convert_SHs_python:
             shs_view = pc.get_features.transpose(1, 2).view(-1, 3, (pc.max_sh_degree+1)**2)
