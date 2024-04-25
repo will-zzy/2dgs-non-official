@@ -271,7 +271,7 @@ __device__ void compute2DGSBBox(
 	glm::mat3x4 M = glm::mat3x4(
 		uv_view[0][0], 	uv_view[0][1], 	uv_view[0][2], 	0.0f,
 		uv_view[1][0], 	uv_view[1][1], 	uv_view[1][2], 	0.0f,
-		p_view->x,		p_view->y,		p_view->z,		1.0f
+		p_view->x,		p_view->y,		p_view->z,		1.0f 
 	);
 
 	glm::mat3x4 T_o = (projmatrix) * M;
