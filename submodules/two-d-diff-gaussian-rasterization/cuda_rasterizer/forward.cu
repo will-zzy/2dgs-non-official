@@ -51,7 +51,14 @@ __device__ glm::mat3 computeRotScaFromQua(glm::vec4 quaternion, glm::vec3 scale)
 		2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
 	);
 
+	// glm::mat3 R = glm::mat3(// 每一行是一个向量
+	// 	1.f - 2.f * (y * y + z * z), 2.f * (x * y + r * z), 2.f * (x * z - r * y),
+	// 	2.f * (x * y - r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z + r * x),
+	// 	2.f * (x * z + r * y), 2.f * (y * z - r * x), 1.f - 2.f * (x * x + y * y)
+	// );
+
 	glm::mat3 L = S * R;
+	// glm::mat3 L = R * S;
 
 	return L;
 }
@@ -113,15 +120,14 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 
 
 __device__ float computeLocalGaussian(
-	const glm::mat3x4* T, // KWH_t
+	const glm::mat3x3 T_t, // KWH
 	const float2 center,  // 像素坐标
 	const float2 point_image // 高斯投影
 	// const float dist3d, // uv平面上的距离
 	// float* dist // xy平面上的距离
 ){
-	glm::mat4x3 T_t = glm::transpose(*T);
-	glm::vec3 k = -T_t[0] + center.x * T_t[3]; // hu
-	glm::vec3 l = -T_t[1] + center.y * T_t[3]; // hv
+	glm::vec3 k = -T_t[0] + center.x * T_t[2]; // hu
+	glm::vec3 l = -T_t[1] + center.y * T_t[2]; // hv
 	
 	glm::vec3 point = glm::cross(k,l); 
 
@@ -150,75 +156,6 @@ __device__ float computeLocalGaussian(
 
 
 
-// __device__ float computeLocalGaussian(
-// 	const float2& center,  // 像素坐标为[-W/2,W/2] 
-// 	const float* cam_intr,
-// 	const float* p, // 高斯质心
-// 	const float* w2c,
-// 	const glm::vec3 scale,
-// 	const glm::vec4 quaternion // 高斯旋转
-// ){
-// /*
-// 输入图像像素坐标，相机内参，2DGS的参数与W2C
-// 输出该像素坐标在 参与渲染的高斯的 局部坐标
-// */
-
-// 	float r = quaternion.x;
-// 	float x = quaternion.y;
-// 	float y = quaternion.z;
-// 	float z = quaternion.w;
-
-// 	// glm::mat4 rot = glm::mat3(
-// 	// 	1.f - 2.f * (y * y + z * z), 2.f * (x * y - r * z), 2.f * (x * z + r * y),
-// 	// 	2.f * (x * y + r * z), 1.f - 2.f * (x * x + z * z), 2.f * (y * z - r * x),
-// 	// 	2.f * (x * z - r * y), 2.f * (y * z + r * x), 1.f - 2.f * (x * x + y * y)
-// 	// );
-
-// 	glm::vec3 tu = glm::vec3(
-// 		1.f - 2.f * (y * y + z * z),
-// 		2.f * (x * y + r * z),
-// 		2.f * (x * z - r * y)
-// 	);
-// 	glm::vec3 tv = glm::vec3(
-// 		2.f * (x * y - r * z),
-// 		1.f - 2.f * (x * x + z * z),
-// 		2.f * (y * z + r * x)
-// 	);
-
-
-// 	glm::mat4 H = glm::mat4(
-// 		scale.x * tu.x, scale.y * tv.x, 0, p[0],
-// 		scale.x * tu.y, scale.y * tv.y, 0, p[1],
-// 		scale.x * tu.z, scale.y * tv.z, 0, p[2],
-// 		0, 0, 0, 1
-// 	);
-
-// 	glm::mat4 W = glm::mat4(
-// 		w2c[0], w2c[4], w2c[8], w2c[12],
-// 		w2c[1], w2c[5], w2c[9], w2c[13],
-// 		w2c[2], w2c[6], w2c[10], w2c[14],
-// 		w2c[3], w2c[7], w2c[11], w2c[15]
-// 	); // w2c在python端转了个置
-
-// 	glm::mat4 M_minusT =  glm::transpose(H * W); // M^{-T}用于转换相机坐标系下的平面参数到高斯局部坐标系下的平面参数
-// 	// 右下前坐标系
-// 	float x_camera = (center.x - cam_intr[2] + 0.5) / cam_intr[0]; // 像素平面点变换到归一化平面点
-// 	float y_camera = (center.y - cam_intr[3] + 0.5) / cam_intr[1];
-
-
-// 	glm::vec4 hx = glm::vec4(-1, 0, 0, x_camera); // 平行于yoz平面的x平面
-// 	glm::vec4 hy = glm::vec4(0, -1, 0, y_camera); // 平行于xoz平面的y平面
-//     glm::vec4 hu = hx * M_minusT;
-// 	glm::vec4 hv = hy * M_minusT;
-	
-
-// 	float u = (hu.y * hv.w - hu.w * hv.y) / (hu.x * hv.y - hu.y * hv.x);
-// 	float v = (hu.w * hv.x - hu.x * hv.w) / (hu.x * hv.y - hu.y * hv.x);
-// 	float2 gauss_uv = {u,v};
-// 	float g = exp(- (u * u + v * v) / 2);
-// 	return g;
-// }
-
 
 
 __device__ void print_matrix3x3(glm::mat3 M){
@@ -240,8 +177,8 @@ __device__ void print_matrix3x(glm::mat3x4 m){
 }
 
 __device__ void compute2DGSBBox(
-	const glm::mat4 viewmatrix, //w2c.T
-	const glm::mat4 projmatrix,
+	const glm::mat4 viewmatrix, // w2c
+	const glm::mat3 projmatrix, // K
 	const glm::vec4 quaternion,
 	const glm::vec3 scale,
 	const float* p, // 高斯质心
@@ -249,10 +186,10 @@ __device__ void compute2DGSBBox(
 	float* normal,
 	float* radii,
 	float2* point_image,
-	glm::mat3x4* T
+	glm::mat3* T_t
 ){
 
-	glm::mat3 rotation = glm::transpose(computeRotScaFromQua(quaternion, scale)); // R.T
+	glm::mat3 rotation = computeRotScaFromQua(quaternion, scale); // R，尽量少用tanspose
 	normal[0] = rotation[2][0] / scale.z;
 	normal[1] = rotation[2][1] / scale.z;
 	normal[2] = rotation[2][2] / scale.z;
@@ -263,48 +200,54 @@ __device__ void compute2DGSBBox(
 	// 计算深度用p_view
 
 	glm::mat3 viewmatrix_R = makeMat3FromMat4(viewmatrix); 
-	glm::mat3 uv_view = viewmatrix_R * rotation; // 3x3，相机坐标系下，高斯椭球的朝向转置，每个行向量是高斯每根轴的朝向与尺度
+	// glm::mat3 uv_view = viewmatrix_R * rotation; // 3x3，相机坐标系下，高斯椭球的朝向转置，每个行向量是高斯每根轴的朝向与尺度
+	glm::mat3 uv_view = rotation * viewmatrix_R; // 3x3，相机坐标系下，高斯椭球的朝向转置，每个列向量是高斯每根轴的朝向与尺度
 	
 	// std::printf("sucess1");
 
 	// glm::mat4 projmatrix = glm::make_mat4(proj);
-	glm::mat3x4 M = glm::mat3x4(
-		uv_view[0][0], 	uv_view[0][1], 	uv_view[0][2], 	0.0f,
-		uv_view[1][0], 	uv_view[1][1], 	uv_view[1][2], 	0.0f,
-		p_view->x,		p_view->y,		p_view->z,		1.0f 
+	// glm::mat3x3 M = glm::mat3x3(
+	// 	uv_view[0][0], 	uv_view[0][1], 	uv_view[0][2],
+	// 	uv_view[1][0], 	uv_view[1][1], 	uv_view[1][2],
+	// 	p_view->x,		p_view->y,		p_view->z
+	// );
+	glm::mat3x3 M = glm::mat3x3(
+		uv_view[0][0], 	uv_view[0][1], 	p_view->x,				
+		uv_view[1][0], 	uv_view[1][1], 	p_view->y,
+		uv_view[2][0],  uv_view[2][1],  p_view->z
 	);
 
-	glm::mat3x4 T_o = (projmatrix) * M;
-	*T = T_o;
+	// glm::mat3x3 T_o = (projmatrix) * M;
+	*T_t = M * projmatrix;
 	// float* T_o_first = &T_o[0][0];
 	// for(int i = 0; i < 12; i++)
 	// 	T[i] = T_o_first[i];
 
-	glm::mat4x3 T_t = glm::transpose(T_o);
+	// glm::mat3x3 T_t = glm::transpose(T_o);
 	glm::vec3 temp_point = glm::vec3(1.0f,1.0f,-1.0f);
 	// print_matrix3x(T_o);
 
 
 	// 见pdf
-	float distance = glm::dot(temp_point,T_t[3] * T_t[3]);
+	float distance = glm::dot(temp_point,(*T_t)[2] * (*T_t)[2]);
 	temp_point *= 1 / (distance + 0.00001f); 
 
-	point_image->x = glm::dot(temp_point,T_t[0] * T_t[3]); // 高斯的投影点不一定是bbox的中心点
-	point_image->y = glm::dot(temp_point,T_t[1] * T_t[3]);
+	point_image->x = glm::dot(temp_point,(*T_t)[0] * (*T_t)[2]); // 高斯的投影点不一定是bbox的中心点
+	point_image->y = glm::dot(temp_point,(*T_t)[1] * (*T_t)[2]);
 	
 	// *point_image = glm::vec3(
-	// 	glm::dot(temp_point,T_t[0] * T_t[3]),
-	// 	glm::dot(temp_point,T_t[1] * T_t[3]),
-	// 	glm::dot(temp_point,T_t[2] * T_t[3])
+	// 	glm::dot(temp_point,(*T_t)[0] * (*T_t)[2]),
+	// 	glm::dot(temp_point,(*T_t)[1] * (*T_t)[2]),
+	// 	glm::dot(temp_point,(*T_t)[2] * (*T_t)[2])
 	// );
 	float2 radius_square = {
-		point_image->x * point_image->x - glm::dot(temp_point,T_t[0] * T_t[0]),
-		point_image->y * point_image->y - glm::dot(temp_point,T_t[1] * T_t[1])
+		point_image->x * point_image->x - glm::dot(temp_point,(*T_t)[0] * (*T_t)[0]),
+		point_image->y * point_image->y - glm::dot(temp_point,(*T_t)[1] * (*T_t)[1])
 	};
 	// glm::vec3 radius_square = (*point_image) * (*point_image) - glm::vec3(
-	// 	glm::dot(temp_point,T_t[0] * T_t[0]),
-	// 	glm::dot(temp_point,T_t[1] * T_t[1]),
-	// 	glm::dot(temp_point,T_t[2] * T_t[2])
+	// 	glm::dot(temp_point,(*T_t)[0] * (*T_t)[0]),
+	// 	glm::dot(temp_point,(*T_t)[1] * (*T_t)[1]),
+	// 	glm::dot(temp_point,(*T_t)[2] * (*T_t)[2])
 	// );
 	// cout << glm::to_string(*T) << endl;
 	float2 radi = { // 两根之差/2的平方
@@ -334,7 +277,7 @@ __global__ void preprocessCUDA(int P, int D, int M, // 计算2dgs的radii，并�
 	// const float* cov3D_precomp,
 	const float* colors_precomp,
 	const glm::mat4* viewmatrix, //cuda
-	const glm::mat4* projmatrix,
+	const glm::mat3* projmatrix,
 	const glm::vec3* cam_pos,
 	const float* cam_intr,
 	const int W, int H,
@@ -344,7 +287,7 @@ __global__ void preprocessCUDA(int P, int D, int M, // 计算2dgs的radii，并�
 	float2* points_xy_image,
 	float* depths,
 	float* normals,
-	glm::mat3x4* KWH_t, // T
+	glm::mat3* KWH, // T
 	float* rgb,
 	float4* conic_opacity,
 	const dim3 grid,
@@ -387,7 +330,7 @@ __global__ void preprocessCUDA(int P, int D, int M, // 计算2dgs的radii，并�
 		normals + 3 * idx,
 		radii + 2 * idx,
 		points_xy_image + idx,
-		KWH_t + idx
+		KWH + idx
 	);
 	// printf("%f,%f\n",radii[2 * idx], radii[2 * idx + 1]);
 	// Compute extent in screen space (by finding eigenvalues of
@@ -446,7 +389,7 @@ renderCUDA(
 	// const float* __restrict__ cam_intr, 
 	// const glm::vec4* __restrict__ quaternions, // [P, 4] 需要用到四元数生成tu,tv
 	// const glm::vec3* __restrict__ scales, // tu, tv轴对应的尺度
-	const glm::mat3x4* __restrict__ KWH_t, //!!!
+	const glm::mat3x3* __restrict__ KWH, //!!!
 	const float* __restrict__ features,
 	const float4* __restrict__ conic_opacity,
 	float* __restrict__ final_T,
@@ -526,7 +469,7 @@ renderCUDA(
 			float4 con_o = collected_conic_opacity[j];
 			// float power = -0.5f * (con_o.x * d.x * d.x + con_o.z * d.y * d.y) - con_o.y * d.x * d.y;
 			float g = computeLocalGaussian(
-				KWH_t + collected_id[j],
+				KWH[collected_id[j]],
 				pixf,
 				xy
 			);
@@ -594,7 +537,7 @@ void FORWARD::render(
 	// const float* cam_intr,
 	// const glm::vec4* quaternions,
 	// const glm::vec3* scales,
-	const glm::mat3x4* KWH_t,
+	const glm::mat3x3* KWH,
 	const float* colors,
 	const float4* conic_opacity,
 	float* final_T,
@@ -616,7 +559,7 @@ void FORWARD::render(
 		// cam_intr,
 		// quaternions,
 		// scales,
-		KWH_t,
+		KWH,
 		colors,
 		conic_opacity,
 		final_T,
@@ -639,7 +582,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	// const float* cov3D_precomp,
 	const float* colors_precomp,
 	const glm::mat4* viewmatrix,
-	const glm::mat4* projmatrix,
+	const glm::mat3* projmatrix,
 	const glm::vec3* cam_pos,
 	const float* cam_intr,
 	const int W, int H,
@@ -649,7 +592,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	float2* means2D,
 	float* depths,
 	float* normals,
-	glm::mat3x4* KWH_t,
+	glm::mat3* KWH,
 	float* rgb,
 	float4* conic_opacity,
 	const dim3 grid,
@@ -677,8 +620,6 @@ void FORWARD::preprocess(int P, int D, int M,
 		colors_precomp,
 		viewmatrix, 
 		projmatrix,
-		// viewmatrix, 
-		// projmatrix,
 		cam_pos,
 		cam_intr,
 		W, H,
@@ -688,7 +629,7 @@ void FORWARD::preprocess(int P, int D, int M,
 		means2D,
 		depths,
 		normals,
-		KWH_t,
+		KWH,
 		rgb,
 		conic_opacity,
 		grid,

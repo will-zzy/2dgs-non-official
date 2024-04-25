@@ -176,7 +176,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   torch::Tensor dL_dsh = torch::zeros({P, M, 3}, means3D.options());
   torch::Tensor dL_dscales = torch::zeros({P, 3}, means3D.options());
   torch::Tensor dL_drotations = torch::zeros({P, 4}, means3D.options());
-  torch::Tensor dL_KWH_t = torch::zeros({P, 3, 4}, means3D.options());
+  torch::Tensor dL_dKWH = torch::zeros({P, 3, 3}, means3D.options());
   
   
   if(P != 0)
@@ -201,7 +201,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  reinterpret_cast<char*>(binningBuffer.contiguous().data_ptr()),
 	  reinterpret_cast<char*>(imageBuffer.contiguous().data_ptr()),
 	  dL_dout_color.contiguous().data<float>(),
-	  dL_KWH_t.contiguous().data<float>(),
+	  dL_dKWH.contiguous().data<float>(),
 	  dL_dmeans2D.contiguous().data<float>(),
 	//   dL_dconic.contiguous().data<float>(),  
 	  dL_dopacity.contiguous().data<float>(),
@@ -219,7 +219,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	dL_dmeans2D, 
 	dL_dcolors, 
 	dL_dopacity, 
-	// dL_KWH_t, 
+	// dL_dKWH, 
 	dL_dmeans3D, 
 	dL_dsh, 
 	dL_dscales, 

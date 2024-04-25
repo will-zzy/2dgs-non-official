@@ -76,7 +76,8 @@ def getProjectionMatrix(znear, zfar, fovX, fovY, params, w, h):
     right = cx * znear / fx
     left = -(w - cx) * znear / fx
 
-    P = torch.zeros(4, 4)
+    # P = torch.zeros(4, 4)
+    P = torch.zeros(3, 3)
 
     # z_sign = 1.0
     # # NDC 投影
@@ -94,7 +95,7 @@ def getProjectionMatrix(znear, zfar, fovX, fovY, params, w, h):
     P[0,2] = cx
     P[1,2] = cy
     P[2,2] = 1.0
-    P[3,2] = 1.0
+    # P[3,2] = 1.0
     return P
 
 def fov2focal(fov, pixels):

@@ -152,7 +152,7 @@ __forceinline__ __device__ bool in_frustum(int idx,
 	// float p_w = 1.0f / (p_hom.w + 0.0000001f);
 	// float3 p_proj = { p_hom.x * p_w, p_hom.y * p_w, p_hom.z * p_w };
 	// p_view = transformPoint4x3(p_orig, viewmatrix);
-	*p_view = viewmatrix * p_orig;
+	*p_view = p_orig * viewmatrix ;
 
 	if ((*p_view).z <= 0.00002f)// || ((p_proj.x < -1.3 || p_proj.x > 1.3 || p_proj.y < -1.3 || p_proj.y > 1.3)))
 	{

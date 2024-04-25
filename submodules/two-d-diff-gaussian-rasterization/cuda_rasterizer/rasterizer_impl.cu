@@ -173,7 +173,7 @@ CudaRasterizer::GeometryState CudaRasterizer::GeometryState::fromChunk(char*& ch
 	obtain(chunk, geom.clamped, P * 3, 128);
 	obtain(chunk, geom.internal_radii, P, 128);
 	obtain(chunk, geom.means2D, P, 128);
-	obtain(chunk, geom.KWH_t, P*12, 128); //3x4
+	obtain(chunk, geom.KWH, P * 9, 128); //3x3
 	// obtain(chunk, geom.cov3D, P * 6, 128);
 	obtain(chunk, geom.conic_opacity, P, 128);
 	obtain(chunk, geom.rgb, P * 3, 128);
@@ -283,7 +283,7 @@ int CudaRasterizer::Rasterizer::forward(
 		// cov3D_precomp,
 		colors_precomp,
 		(glm::mat4*)viewmatrix, 
-		(glm::mat4*)projmatrix,
+		(glm::mat3*)projmatrix,
 		(glm::vec3*)cam_pos,
 		cam_intr,
 		width, height,
@@ -293,7 +293,7 @@ int CudaRasterizer::Rasterizer::forward(
 		geomState.means2D,
 		geomState.depths,
 		geomState.normals,
-		(glm::mat3x4*)geomState.KWH_t,
+		(glm::mat3x3*)geomState.KWH,
 		geomState.rgb,
 		geomState.conic_opacity,
 		tile_grid,
@@ -364,7 +364,7 @@ int CudaRasterizer::Rasterizer::forward(
 		// cam_intr,
 		// (glm::vec4*)rotations,
 		// (glm::vec3*)scales,
-		(glm::mat3x4*)geomState.KWH_t,
+		(glm::mat3x3*)geomState.KWH,
 		feature_ptr,
 		geomState.conic_opacity,
 		imgState.accum_alpha,
@@ -400,7 +400,7 @@ void CudaRasterizer::Rasterizer::backward(
 	char* binning_buffer,
 	char* img_buffer,
 	const float* dL_dpix,
-	float* dL_KWH_t,
+	float* dL_dKWH,
 	float* dL_dmean2D,
 	// float* dL_dconic,
 	float* dL_dopacity,
@@ -439,13 +439,13 @@ void CudaRasterizer::Rasterizer::backward(
 		width, height,
 		background,
 		geomState.means2D,
-		(glm::mat3x4*)geomState.KWH_t,
+		(glm::mat3x3*)geomState.KWH,
 		geomState.conic_opacity,
 		color_ptr,
 		imgState.accum_alpha,
 		imgState.n_contrib,
 		dL_dpix, // 输入
-		(glm::mat3x4*)dL_KWH_t, // 输出
+		(glm::mat3x3*)dL_dKWH, // 输出
 		(glm::vec3*)dL_dmean2D, // 输出
 		// (float4*)dL_dconic, // 输出
 		dL_dopacity, // 输出
@@ -467,11 +467,11 @@ void CudaRasterizer::Rasterizer::backward(
 		scale_modifier,
 		// cov3D_ptr,
 		(glm::mat4*)viewmatrix,
-		(glm::mat4*)projmatrix,
+		(glm::mat3*)projmatrix,
 		// focal_x, focal_y,
 		// tan_fovx, tan_fovy,
 		(glm::vec3*)campos,
-		(glm::mat3x4*)dL_KWH_t,
+		(glm::mat3x3*)dL_dKWH,
 		(glm::vec3*)dL_dmean2D,
 		// dL_dconic,
 		(glm::vec3*)dL_dmean3D,

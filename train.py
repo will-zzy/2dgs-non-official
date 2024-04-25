@@ -153,8 +153,8 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
         
         
         # Loss
-        gt_image = viewpoint_cam.get_image.cuda()
-        # gt_image = torch.zeros_like(image).cuda()
+        # gt_image = viewpoint_cam.get_image.cuda()
+        gt_image = torch.zeros_like(image).cuda()
         Ll1 = l1_loss(image, gt_image)
         # loss = (1.0 - config.loss.lambda_ssim) * Ll1 + config.loss.lambda_ssim * (1.0 - ssim(image, gt_image))
         loss = (1.0 - config.loss.lambda_ssim) * Ll1 
@@ -300,7 +300,7 @@ if __name__ == "__main__":
 
     # Initialize system state (RNG)
     safe_state(args.quiet)
-    args.test_iterations = [i*1000 for i in range(0,30)]
+    args.test_iterations = [i*500 for i in range(0,60)]
     # Start GUI server, configure and run training
     network_gui.init(args.ip, args.port)
     torch.autograd.set_detect_anomaly(args.detect_anomaly)

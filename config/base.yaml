@@ -55,7 +55,7 @@ optimizer:
   scaling_lr: 5.e-4 # 5.e-3
   rotation_lr: 1.e-3
   percent_dense: 1.e-2
-  densification_interval: 100 # 100
+  densification_interval: 300 # 100
   opacity_reset_interval: 3000 # 3000
   densify_from_iter: 500 # 500
   densify_until_iter: 15000
