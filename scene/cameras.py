@@ -63,46 +63,46 @@ class Camera(nn.Module):
         
         
         ### Here_is_demo ###
-        def get_cameras():
-            intrins = torch.tensor([
-                       [711.1111,   0.0000, 256.0000],
-                       [  0.0000, 711.1111, 256.0000],
-                       [  0.0000,   0.0000,   1.0000]]).cuda()
-            c2w = torch.tensor([[-8.6086e-01,  3.7950e-01, -3.3896e-01,  6.7791e-01],
-                 [ 5.0884e-01,  6.4205e-01, -5.7346e-01,  1.1469e+00],
-                 [ 1.0934e-08, -6.6614e-01, -7.4583e-01,  1.4917e+00],
-                 [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]]).cuda()
+        # def get_cameras():
+        #     intrins = torch.tensor([
+        #                [711.1111,   0.0000, 256.0000],
+        #                [  0.0000, 711.1111, 256.0000],
+        #                [  0.0000,   0.0000,   1.0000]]).cuda()
+        #     c2w = torch.tensor([[-8.6086e-01,  3.7950e-01, -3.3896e-01,  6.7791e-01],
+        #          [ 5.0884e-01,  6.4205e-01, -5.7346e-01,  1.1469e+00],
+        #          [ 1.0934e-08, -6.6614e-01, -7.4583e-01,  1.4917e+00],
+        #          [ 0.0000e+00,  0.0000e+00,  0.0000e+00,  1.0000e+00]]).cuda()
 
-            width, height = 512, 512
-            focal_x, focal_y = intrins[0, 0], intrins[1, 1]
-            viewmat = torch.linalg.inv(c2w) # w2c
-            # FoVx = focal2fov(focal_x, width)
-            # FoVy = focal2fov(focal_y, height)
-            projmat = intrins.cuda() # P
-            # projmat = viewmat @ projmat # (P @ w2c).T
-            return intrins, viewmat, projmat, height, width
-        intrins, viewmat, projmat, height, width = get_cameras()
+        #     width, height = 512, 512
+        #     focal_x, focal_y = intrins[0, 0], intrins[1, 1]
+        #     viewmat = torch.linalg.inv(c2w) # w2c
+        #     # FoVx = focal2fov(focal_x, width)
+        #     # FoVy = focal2fov(focal_y, height)
+        #     projmat = intrins.cuda() # P
+        #     # projmat = viewmat @ projmat # (P @ w2c).T
+        #     return intrins, viewmat, projmat, height, width
+        # intrins, viewmat, projmat, height, width = get_cameras()
         
-        self.world_view_transform = viewmat
-        self.projection_matrix = projmat
-        self.cam_intr = torch.tensor([intrins[0,0],intrins[0,0],intrins[0,2],intrins[0,2]],dtype=torch.float32,device=data_device)
-        self.camera_center = self.world_view_transform.inverse()[3, :3]
+        # self.world_view_transform = viewmat
+        # self.projection_matrix = projmat
+        # self.cam_intr = torch.tensor([intrins[0,0],intrins[0,0],intrins[0,2],intrins[0,2]],dtype=torch.float32,device=data_device)
+        # self.camera_center = self.world_view_transform.inverse()[3, :3]
         ### Here_is_demo ###
         
         
         ### Here_is_origin_code ###
         
-        # self.world_view_transform = torch.tensor(getWorld2View2(self.R, self.T, trans, scale)).cuda()
-        # self.projection_matrix = getProjectionMatrix(znear=self.znear, 
-        #                                              zfar=self.zfar, 
-        #                                              fovX=self.FoVx, 
-        #                                              fovY=self.FoVy, 
-        #                                              params = self.cam_intr,
-        #                                              w=self.resolution[0],
-        #                                             #  h=self.resolution[1]).transpose(0,1).cuda()
-        #                                              h=self.resolution[1]).cuda()
-        # # self.full_proj_transform = (self.world_view_transform.unsqueeze(0).bmm(self.projection_matrix.unsqueeze(0))).squeeze(0)
-        # self.camera_center = self.world_view_transform.inverse()[3, :3]
+        self.world_view_transform = torch.tensor(getWorld2View2(self.R, self.T, trans, scale)).cuda()
+        self.projection_matrix = getProjectionMatrix(znear=self.znear, 
+                                                     zfar=self.zfar, 
+                                                     fovX=self.FoVx, 
+                                                     fovY=self.FoVy, 
+                                                     params = self.cam_intr,
+                                                     w=self.resolution[0],
+                                                    #  h=self.resolution[1]).transpose(0,1).cuda()
+                                                     h=self.resolution[1]).cuda()
+        # self.full_proj_transform = (self.world_view_transform.unsqueeze(0).bmm(self.projection_matrix.unsqueeze(0))).squeeze(0)
+        self.camera_center = self.world_view_transform.inverse()[3, :3]
     
         ### Here_is_origin_code ###
         
