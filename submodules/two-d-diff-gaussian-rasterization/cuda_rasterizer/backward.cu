@@ -369,12 +369,12 @@ __device__ void print_matrix4x4(glm::mat4 m){
 		
 	);
 }
-__device__ void print_matrix3x4(glm::mat3x4 m){
+__device__ void print_matrix3x3(glm::mat3x4 m){
 
-	printf("%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f\n\n",
-		m[0][0],m[0][1],m[0][2],m[0][3],
-		m[1][0],m[1][1],m[1][2],m[1][3],
-		m[2][0],m[2][1],m[2][2],m[2][3]
+	printf("%f, %f, %f\n%f, %f, %f\n%f, %f, %f\n\n",
+		m[0][0],m[0][1],m[0][2],
+		m[1][0],m[1][1],m[1][2],
+		m[2][0],m[2][1],m[2][2]
 		
 	);
 }
@@ -397,32 +397,34 @@ __device__ void compute2DGSBBox(
 	float fy = projmatrix[1][1];
 	float cx = projmatrix[2][0];
 	float cy = projmatrix[2][1];
+	print_matrix3x3(dL_dKWH);
 	// print_matrix3x3(projmatrix);
 	// printf("%f,%f,%f,%f\n\n",fx,fy,cx,cy);
-
-	glm::mat3x4 dL_dM(0.0f); 
+	// printf("dL_dscale: %f, %f, %f\n", dL_dscale[idx].x,dL_dscale[idx].y,dL_dscale[idx].z);
+	glm::mat3 dL_dM(0.0f); 
 	// T = K @ M
 	dL_dM[0][0] = fx * dL_dKWH[0][0];
-	dL_dM[1][0] = fx * dL_dKWH[0][1];
-	dL_dM[2][0] = fx * dL_dKWH[0][2];
+	dL_dM[0][1] = fx * dL_dKWH[0][1];
+	dL_dM[0][2] = fx * dL_dKWH[0][2];
 
-	dL_dM[0][1] = fy * dL_dKWH[1][0];
+	dL_dM[1][0] = fy * dL_dKWH[1][0];
 	dL_dM[1][1] = fy * dL_dKWH[1][1];
-	dL_dM[2][1] = fy * dL_dKWH[1][2];
+	dL_dM[1][2] = fy * dL_dKWH[1][2];
 	
 	// dL_dM[0][2] = cx*dL_dKWH[0][0] + cy*dL_dKWH[0][1] + dL_dKWH[0][2] + dL_dKWH[0][3];
 	// dL_dM[1][2] = cx*dL_dKWH[1][0] + cy*dL_dKWH[1][1] + dL_dKWH[1][2] + dL_dKWH[1][3];
 	// dL_dM[2][2] = cx*dL_dKWH[2][0] + cy*dL_dKWH[2][1] + dL_dKWH[2][2] + dL_dKWH[2][3];
 	
-	dL_dM[0][2] = cx*dL_dKWH[0][0] + cy*dL_dKWH[1][0] + dL_dKWH[2][0];
-	dL_dM[1][2] = cx*dL_dKWH[0][1] + cy*dL_dKWH[1][1] + dL_dKWH[2][1];
+	dL_dM[2][0] = cx*dL_dKWH[0][0] + cy*dL_dKWH[1][0] + dL_dKWH[2][0];
+	dL_dM[2][1] = cx*dL_dKWH[0][1] + cy*dL_dKWH[1][1] + dL_dKWH[2][1];
 	dL_dM[2][2] = cx*dL_dKWH[0][2] + cy*dL_dKWH[1][2] + dL_dKWH[2][2];
 
+	// print_matrix3x3(dL_dM);
 	// M[2,0:3] = p
 	dL_dmeans->x = dL_dM[2][0];
 	dL_dmeans->y = dL_dM[2][1];
 	dL_dmeans->z = dL_dM[2][2];
-
+	// printf("%f, %f, %f\n",dL_dmeans->x,dL_dmeans->y,dL_dmeans->z);
 	
 
 
@@ -458,13 +460,13 @@ __device__ void compute2DGSBBox(
 
 	*dL_dmean2D = R_t * (*dL_dmeans);
 	if (dL_dmean2D->z >= 0){
-		dL_dmean2D->x = (dL_dmean2D->x * fx + dL_dmean2D->z * cx) / (dL_dmean2D->z+1.0e-4f);
-		dL_dmean2D->y = (dL_dmean2D->y * fy + dL_dmean2D->z * cy) / (dL_dmean2D->z+1.0e-4f);
+		dL_dmean2D->x = (dL_dmean2D->x * fx + dL_dmean2D->z * cx) / (dL_dmean2D->z+1.0e-6f);
+		dL_dmean2D->y = (dL_dmean2D->y * fy + dL_dmean2D->z * cy) / (dL_dmean2D->z+1.0e-6f);
 		
 	}
 	else{
-		dL_dmean2D->x = (dL_dmean2D->x * fx + dL_dmean2D->z * cx) / (dL_dmean2D->z-1.0e-4f);
-		dL_dmean2D->y = (dL_dmean2D->y * fy + dL_dmean2D->z * cy) / (dL_dmean2D->z-1.0e-4f);
+		dL_dmean2D->x = (dL_dmean2D->x * fx + dL_dmean2D->z * cx) / (dL_dmean2D->z-1.0e-6f);
+		dL_dmean2D->y = (dL_dmean2D->y * fy + dL_dmean2D->z * cy) / (dL_dmean2D->z-1.0e-6f);
 
 	}
 	
@@ -536,6 +538,7 @@ __global__ void preprocessCUDA(
 		dL_dscale + idx,
 		dL_drot + idx
 	);
+	
 	
 	
 
@@ -887,4 +890,5 @@ void BACKWARD::render(
 		dL_dopacity, // 正确
 		dL_dcolors  // 正确
 		);
+	
 }
