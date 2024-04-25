@@ -1,8 +1,8 @@
 
 
 # case_name: sheep55-ngptest
-# case_name: truck
-case_name: scan65
+case_name: truck
+# case_name: scan65
 # case_name: ObliqueSBY1580
 root_dir: /data3/zzy/public_data/${case_name}
 # root_dir: /data3/zzy/data_lab/${case_name}
@@ -56,8 +56,8 @@ optimizer:
   rotation_lr: 1.e-3
   percent_dense: 1.e-2
   densification_interval: 100 # 100
-  opacity_reset_interval: 1000 # 3000
-  densify_from_iter: 100 # 500
+  opacity_reset_interval: 3000 # 3000
+  densify_from_iter: 500 # 500
   densify_until_iter: 15000
   densify_grad_threshold: 2.e-4
   random_background: false

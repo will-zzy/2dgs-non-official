@@ -133,8 +133,8 @@ __device__ float computeLocalGaussian(
 	float coff = 1 / (sqrt(2) / 2);
 
 	glm::vec2 offset = glm::vec2(center.x - point_image.x, center.y - point_image.y);
-	float dist2d = coff * glm::length(offset);
-	dist2d *= dist2d;
+	// float dist2d = coff * glm::length(offset);
+	// dist2d *= dist2d;
 	// 低通滤波
 
 	// float dist = min(dist2d,dist3d); // 1/2/3 sigma以内保留
@@ -228,6 +228,17 @@ __device__ void print_matrix3x3(glm::mat3 M){
 	M[2][0],M[2][1],M[2][2]);
 }
 
+
+__device__ void print_matrix3x(glm::mat3x4 m){
+
+	printf("%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f\n\n",
+		m[0][0],m[0][1],m[0][2],m[0][3],
+		m[1][0],m[1][1],m[1][2],m[1][3],
+		m[2][0],m[2][1],m[2][2],m[2][3]
+		
+	);
+}
+
 __device__ void compute2DGSBBox(
 	const glm::mat4 viewmatrix, //w2c.T
 	const glm::mat4 projmatrix,
@@ -271,7 +282,7 @@ __device__ void compute2DGSBBox(
 
 	glm::mat4x3 T_t = glm::transpose(T_o);
 	glm::vec3 temp_point = glm::vec3(1.0f,1.0f,-1.0f);
-
+	// print_matrix3x(T_o);
 
 
 	// 见pdf

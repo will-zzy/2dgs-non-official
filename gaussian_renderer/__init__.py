@@ -34,10 +34,10 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
 
     raster_settings = GaussianRasterizationSettings(
-        # image_height=int(viewpoint_camera.resolution[1]), ### Here_is_origin_code ###
-        # image_width=int(viewpoint_camera.resolution[0]),  ### Here_is_origin_code ###  
-        image_height=512, ### Here_is_demo ###
-        image_width=512, ### Here_is_demo ###
+        image_height=int(viewpoint_camera.resolution[1]), ### Here_is_origin_code ###
+        image_width=int(viewpoint_camera.resolution[0]),  ### Here_is_origin_code ###  
+        # image_height=512, ### Here_is_demo ###
+        # image_width=512, ### Here_is_demo ###
         tanfovx=tanfovx,
         tanfovy=tanfovy,
         bg=bg_color,
@@ -78,10 +78,11 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     ### Here_is_demo ###
     import matplotlib
     import numpy as np 
-    override_color = matplotlib.colormaps['Accent'](np.random.randint(1,64, 64)/64)[..., :3]
-    override_color = np.zeros([9,3])
-    override_color[:,0] = 1.
-    override_color = torch.from_numpy(override_color).cuda().float()
+    import torch.nn as nn
+    # override_color = matplotlib.colormaps['Accent'](np.random.randint(1,64, 64)/64)[..., :3]
+    # override_color = np.zeros([9,3])
+    # override_color[:,0] = 1.
+    # override_color = nn.Parameter(torch.from_numpy(override_color).cuda().float())
     ### Here_is_demo ###
     
     if override_color is None:
@@ -118,5 +119,6 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
             "normal": normal_img,
             "means3D":means3D,
             "scales":scales,
-            "sh":shs
+            "sh":shs,
+            "colrors": override_color
             }

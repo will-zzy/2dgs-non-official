@@ -359,13 +359,22 @@ __device__ void computeCov3D(int idx, const glm::vec3 scale, float mod, const gl
 	*dL_drot = float4{ dL_dq.x, dL_dq.y, dL_dq.z, dL_dq.w };//dnormvdv(float4{ rot.x, rot.y, rot.z, rot.w }, float4{ dL_dq.x, dL_dq.y, dL_dq.z, dL_dq.w });
 }
 
-__device__ void print_matrix3x3(glm::mat4 m){
+__device__ void print_matrix4x4(glm::mat4 m){
 
 	printf("%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f\n",
 		m[0][0],m[0][1],m[0][2],m[0][3],
 		m[1][0],m[1][1],m[1][2],m[1][3],
 		m[2][0],m[2][1],m[2][2],m[2][3],
 		m[3][0],m[3][1],m[3][2],m[3][3]
+		
+	);
+}
+__device__ void print_matrix3x4(glm::mat3x4 m){
+
+	printf("%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f\n\n",
+		m[0][0],m[0][1],m[0][2],m[0][3],
+		m[1][0],m[1][1],m[1][2],m[1][3],
+		m[2][0],m[2][1],m[2][2],m[2][3]
 		
 	);
 }
@@ -448,8 +457,16 @@ __device__ void compute2DGSBBox(
 
 
 	*dL_dmean2D = R_t * (*dL_dmeans);
-	dL_dmean2D->x = (dL_dmean2D->x * fx + dL_dmean2D->z * cx) / dL_dmean2D->z;
-	dL_dmean2D->y = (dL_dmean2D->y * fy + dL_dmean2D->z * cy) / dL_dmean2D->z;
+	if (dL_dmean2D->z >= 0){
+		dL_dmean2D->x = (dL_dmean2D->x * fx + dL_dmean2D->z * cx) / (dL_dmean2D->z+1.0e-4f);
+		dL_dmean2D->y = (dL_dmean2D->y * fy + dL_dmean2D->z * cy) / (dL_dmean2D->z+1.0e-4f);
+		
+	}
+	else{
+		dL_dmean2D->x = (dL_dmean2D->x * fx + dL_dmean2D->z * cx) / (dL_dmean2D->z-1.0e-4f);
+		dL_dmean2D->y = (dL_dmean2D->y * fy + dL_dmean2D->z * cy) / (dL_dmean2D->z-1.0e-4f);
+
+	}
 	
 
 
@@ -501,6 +518,7 @@ __global__ void preprocessCUDA(
 	float my_radius = sqrt(radii[2 * idx]*radii[2 * idx] + radii[2 * idx + 1]*radii[2 * idx + 1]);
 	if (idx >= P || !(my_radius > 0.00001f))
 		return;
+	// print_matrix3x4(dL_KWH_t[idx]);
 
 	// float3 m = means[idx]; // 三维点坐标
 	// 先不考虑投影点的梯度(因为没有滤波)
@@ -706,11 +724,12 @@ renderCUDA(
 				bg_dot_dpixel += bg_color[i] * dL_dpixel[i];
 			dL_dalpha += (-T_final / (1.f - alpha)) * bg_dot_dpixel; // 有背景则有一个固定值
 
-
+			// T, G, dL_dG, 计算正确
 			// Helpful reusable temporary variables
 			const float dL_dG = con_o.w * dL_dalpha; // dl/dg_i
 			// 需要计算k,l,dd_dp,dL_dd
-			const float dL_dd = -G / 2;
+			// const float dL_dd = -G / 2;
+			const float dL_dd = -G / 2 * dL_dG;
 			const float p3_p3 = point.z * point.z;
 			const glm::vec3 dd_dp = {
 				2 * point.x / p3_p3, 
@@ -719,7 +738,9 @@ renderCUDA(
 			};
 			float x = pixf.x;
 			float y = pixf.y;
-			
+			// printf("%f\n",dL_dd);
+			// if(point.x/point.z > 4.0f || point.y/point.z > 4.0f)
+				// printf("%f, %f\n", pixf.x, pixf.y);
 			atomicAdd(&dL_KWH_t[global_id][0][0], dL_dd * ( dd_dp.y * l.z - dd_dp.z * l.y));
 			atomicAdd(&dL_KWH_t[global_id][1][0], dL_dd * (-dd_dp.x * l.z + dd_dp.z * l.x));
 			atomicAdd(&dL_KWH_t[global_id][2][0], dL_dd * ( dd_dp.x * l.y - dd_dp.y * l.x));
@@ -860,10 +881,10 @@ void BACKWARD::render(
 		final_Ts,
 		n_contrib,
 		dL_dpixels,
-		dL_KWH_t,
+		dL_KWH_t, // 较难确认
 		dL_dmean2D,
 		// dL_dconic2D,
-		dL_dopacity,
-		dL_dcolors
+		dL_dopacity, // 正确
+		dL_dcolors  // 正确
 		);
 }
