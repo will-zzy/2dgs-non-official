@@ -185,8 +185,8 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
                 gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
                 if iteration > config.optimizer.densify_from_iter and iteration % config.optimizer.densification_interval == 0:
-                    size_threshold = 20 if iteration > config.optimizer.opacity_reset_interval else None
-                    gaussians.densify_and_prune(config.optimizer.densify_grad_threshold, 0.0002, scene.cameras_extent, size_threshold)
+                    size_threshold = 100 if iteration > config.optimizer.opacity_reset_interval else None
+                    gaussians.densify_and_prune(config.optimizer.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
                 
                 if iteration % config.optimizer.opacity_reset_interval == 0 or (config.dataset.white_background and iteration == config.optimizer.densify_from_iter):
                     gaussians.reset_opacity()

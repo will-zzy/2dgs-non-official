@@ -4,3 +4,6 @@ Ideally, in any environment configured with 3dgs, first run <br>
 then execute <br>
 ```python --conf_path ./config/base.yaml```<br>
 After that, you can find 0_rgb.jpg and 0_depth.jpg in the current directory.
+
+
+

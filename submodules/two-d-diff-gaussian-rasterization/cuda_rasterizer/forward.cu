@@ -251,8 +251,8 @@ __device__ void compute2DGSBBox(
 	// );
 	// cout << glm::to_string(*T) << endl;
 	float2 radi = { // 两根之差/2的平方
-		glm::sqrt(max(radius_square.x,0.0001f)),
-		glm::sqrt(max(radius_square.y,0.0001f))
+		glm::sqrt(max(radius_square.x,0.000001f)),
+		glm::sqrt(max(radius_square.y,0.000001f))
 	};
 	radii[0] = radi.x;
 	radii[1] = radi.y;

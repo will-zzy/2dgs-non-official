@@ -37,7 +37,7 @@ gs_model:
   model_path:
   load_iteration: false
   sh_degree: 3
-  init_rots: true
+  init_rots: false
   images: "images"
   downsample: ${dataset.downsample}
   # resolution: -1
@@ -52,19 +52,19 @@ optimizer:
   position_lr_max_steps: 30_00
   feature_lr: 2.5e-3
   opacity_lr: 5.e-2 # 5.e-2
-  scaling_lr: 5.e-4 # 5.e-3
+  scaling_lr: 5.e-3 # 5.e-3
   rotation_lr: 1.e-3
-  percent_dense: 2.e-3
-  densification_interval: 100 # 100
+  percent_dense: 1.e-3 # 1.e-2
+  densification_interval: 400 # 100
   opacity_reset_interval: 3000 # 3000
   densify_from_iter: 500 # 500
   densify_until_iter: 15000
-  densify_grad_threshold: 2.e-4
+  densify_grad_threshold: 2.e-4 # 2.e-4
   random_background: false
 loss:
   lambda_rgb_nerf: 1.
   lambda_rgb_gs: 1.
-  lambda_ssim: 0.2
+  lambda_ssim: 0.3
   lambda_eikonal: 0.
   lambda_s3im: 0.
 
