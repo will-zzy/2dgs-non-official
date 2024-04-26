@@ -145,7 +145,7 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
         opacity_map[opacity_map<1e-4] = 1.0
         depth_write /= opacity_map
         # opacity_write = render_pkg['opacity']
-        depth_write = get_grayscale_image_(depth_write,data_range=[0,50],cmap='jet')
+        depth_write = get_grayscale_image_(depth_write,data_range=[0,20],cmap='jet')
         output_dir = os.path.join("/data3/zzy/public_data/tankandtemples/intermediate/Family/output",f"{0}")
         os.makedirs(output_dir,exist_ok=True)
         imageio.imwrite(os.path.join(output_dir,f"{0}_rgb.jpg"),(image_write.permute(1,2,0).detach().cpu().numpy()*255).astype(np.uint8))
@@ -186,7 +186,7 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
 
                 if iteration > config.optimizer.densify_from_iter and iteration % config.optimizer.densification_interval == 0:
                     size_threshold = 20 if iteration > config.optimizer.opacity_reset_interval else None
-                    gaussians.densify_and_prune(config.optimizer.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
+                    gaussians.densify_and_prune(config.optimizer.densify_grad_threshold, 0.0002, scene.cameras_extent, size_threshold)
                 
                 if iteration % config.optimizer.opacity_reset_interval == 0 or (config.dataset.white_background and iteration == config.optimizer.densify_from_iter):
                     gaussians.reset_opacity()

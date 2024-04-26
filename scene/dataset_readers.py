@@ -91,20 +91,24 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, dataset):
             focal_length_x = intr.params[0]
             FovY = focal2fov(focal_length_x, height)
             FovX = focal2fov(focal_length_x, width)
+            params = np.array([intr.params[0],intr.params[0],intr.params[1],intr.params[2]])
         elif intr.model=="PINHOLE":
             focal_length_x = intr.params[0]
             focal_length_y = intr.params[1]
             FovY = focal2fov(focal_length_y, height)
             FovX = focal2fov(focal_length_x, width)
+            params = np.array([intr.params[0],intr.params[1],intr.params[2],intr.params[3]])
         elif intr.model=="OPENCV":
             focal_length_x = intr.params[0]
             focal_length_y = intr.params[1]
             FovY = focal2fov(focal_length_y, height)
             FovX = focal2fov(focal_length_x, width)
+            params = np.array([intr.params[0],intr.params[1],intr.params[2],intr.params[3]])
         elif intr.model == "SIMPLE_RADIAL":
             focal_length_x = intr.params[0]
             FovY = focal2fov(focal_length_x, height)
             FovX = focal2fov(focal_length_x, width)
+            params = np.array([intr.params[0],intr.params[0],intr.params[1],intr.params[2]])
             intr.params[3] = intr.params[2]
             intr.params[2] = intr.params[1]
             intr.params[1] = intr.params[0]
@@ -122,7 +126,7 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, dataset):
             image = None
         cam_info = CameraInfo(colmap_id=intr.id,uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, downsample=dataset.downsample,
                               image=image, image_path=image_path, image_name=image_name,
-                              width=width, height=height, cam_intr=intr,image_type=dataset.type) # cam_intr = [fx,fy,cx,cy]
+                              width=width, height=height, cam_intr=params,image_type=dataset.type) # cam_intr = [fx,fy,cx,cy]
         cam_infos.append(cam_info)
     sys.stdout.write('\n')
     return cam_infos

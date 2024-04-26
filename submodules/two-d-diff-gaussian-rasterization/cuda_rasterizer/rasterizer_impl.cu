@@ -90,8 +90,8 @@ __global__ void duplicateWithKeys(
 		return;
 
 	// Generate no key/value pair for invisible Gaussians
-	// float my_radius = sqrt(radii[2 * idx]*radii[2 * idx] + radii[2 * idx + 1]*radii[2 * idx + 1]);
-	float my_radius = max(radii[2 * idx], radii[2 * idx + 1]);
+	float my_radius = sqrt(radii[2 * idx]*radii[2 * idx] + radii[2 * idx + 1]*radii[2 * idx + 1]);
+	// float my_radius = max(radii[2 * idx], radii[2 * idx + 1]);
 	if (my_radius > 0)
 	{
 		// Find this Gaussian's offset in buffer for writing keys/values.

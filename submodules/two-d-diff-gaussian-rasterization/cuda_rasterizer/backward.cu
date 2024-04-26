@@ -182,6 +182,7 @@ __device__ void compute2DGSBBox(
 	const glm::mat3 projmatrix, // intrinsic
 	const glm::vec4 quaternion,
 	const glm::vec3 scale,
+	const float3 p,
 	const glm::mat3x3 dL_dKWH,
 	glm::vec3* dL_dmean2D,
 	glm::vec3* dL_dmeans,
@@ -221,25 +222,31 @@ __device__ void compute2DGSBBox(
 	dL_dmeans->x = dL_dM[0][2];
 	dL_dmeans->y = dL_dM[1][2];
 	dL_dmeans->z = dL_dM[2][2];
-	// printf("%f, %f, %f\n",dL_dmeans->x,dL_dmeans->y,dL_dmeans->z);
-
-
-	// 此处的三维点梯度是相机坐标系下的三维点梯度
+	// 此处的三维点梯度dL_dmeans是相机坐标系下的三维点梯度
 	// 将质心的梯度投影到像素平面上
 	*dL_dmean2D = *dL_dmeans;
+
+	// 注意这里梯度不是齐次向量
+	glm::vec4 p_view = glm::vec4(p.x, p.y, p.z, 1.0f);
+	p_view = p_view * W2C;
 	if (dL_dmean2D->z >= 0){
-		dL_dmean2D->x = (dL_dmean2D->x * fx + dL_dmean2D->z * cx) / (dL_dmean2D->z+1.0e-6f);
-		dL_dmean2D->y = (dL_dmean2D->y * fy + dL_dmean2D->z * cy) / (dL_dmean2D->z+1.0e-6f);
+		
+	glm::vec4 p_view = glm::vec4(p.x, p.y, p.z, 1.0f);
+		dL_dmean2D->x = dL_dmean2D->x / p_view.z;
+		dL_dmean2D->y = dL_dmean2D->y / p_view.z;
 		
 	}
 	else{
-		dL_dmean2D->x = (dL_dmean2D->x * fx + dL_dmean2D->z * cx) / (dL_dmean2D->z-1.0e-6f);
-		dL_dmean2D->y = (dL_dmean2D->y * fy + dL_dmean2D->z * cy) / (dL_dmean2D->z-1.0e-6f);
+		
+		dL_dmean2D->x = dL_dmean2D->x;
+		dL_dmean2D->y = dL_dmean2D->y;
 
 	}
 
 	//世界坐标系三维点梯度计算正确
 	*dL_dmeans = viewmatrix_R * (*dL_dmeans);
+
+	// printf("%f, %f, %f\n",dL_dmeans->x,dL_dmeans->y,dL_dmeans->z);
 	// Y = uv_view = H @ W
 	// dL_dH计算正确
 	glm::mat3 dL_dH(0.0f);
@@ -339,6 +346,7 @@ __global__ void preprocessCUDA(
 		*projmatrix,
 		rotations[idx],
 		scales[idx],
+		means[idx],
 		dL_dKWH[idx],
 		dL_dmean2D + idx,
 		dL_dmeans + idx,
