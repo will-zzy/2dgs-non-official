@@ -232,14 +232,6 @@ __device__ void compute2DGSBBox(
 	if (dL_dmean2D->z >= 0){
 		
 	glm::vec4 p_view = glm::vec4(p.x, p.y, p.z, 1.0f);
-<<<<<<< HEAD
-		dL_dmean2D->x = dL_dmean2D->x / p_view.z;
-		dL_dmean2D->y = dL_dmean2D->y / p_view.z;
-		
-	}
-	else{
-		
-=======
 		// dL_dmean2D->x = dL_dmean2D->x / p_view.z;
 		// dL_dmean2D->y = dL_dmean2D->y / p_view.z;
 		dL_dmean2D->x = dL_dmean2D->x;
@@ -249,7 +241,6 @@ __device__ void compute2DGSBBox(
 	else{
 		// dL_dmean2D->x = dL_dmean2D->x/ p_view.z;
 		// dL_dmean2D->y = dL_dmean2D->y/ p_view.z;
->>>>>>> 2dgs_debug_python
 		dL_dmean2D->x = dL_dmean2D->x;
 		dL_dmean2D->y = dL_dmean2D->y;
 
