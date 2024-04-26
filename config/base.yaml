@@ -32,6 +32,7 @@ neus_model:
 
 
 gs_model:
+  sigma: 2.
   root_dir: ${root_dir}
   output_dir: ${root_dir}/exp/3dgs
   model_path:
@@ -54,7 +55,7 @@ optimizer:
   opacity_lr: 5.e-2 # 5.e-2
   scaling_lr: 5.e-3 # 5.e-3
   rotation_lr: 1.e-3
-  percent_dense: 1.e-3 # 1.e-2
+  percent_dense: 1.e-2 # 1.e-2
   densification_interval: 100 # 100
   opacity_reset_interval: 3000 # 3000
   densify_from_iter: 500 # 500
@@ -64,7 +65,7 @@ optimizer:
 loss:
   lambda_rgb_nerf: 1.
   lambda_rgb_gs: 1.
-  lambda_ssim: 0.3
+  lambda_ssim: 0.4
   lambda_eikonal: 0.
   lambda_s3im: 0.
 

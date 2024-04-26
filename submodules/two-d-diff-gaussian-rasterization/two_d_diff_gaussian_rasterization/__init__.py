@@ -66,6 +66,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             rotations,
             raster_settings.scale_modifier,
             # cov3Ds_precomp,
+            raster_settings.sigma,
             raster_settings.viewmatrix,
             raster_settings.projmatrix,
             # raster_settings.tanfovx,
@@ -116,6 +117,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 scales, 
                 rotations, 
                 raster_settings.scale_modifier, 
+                raster_settings.sigma,
                 # cov3Ds_precomp, 
                 raster_settings.viewmatrix, # w2c.T
                 raster_settings.projmatrix, # proj.T
@@ -163,6 +165,7 @@ class GaussianRasterizationSettings(NamedTuple):
     image_width: int 
     tanfovx : float
     tanfovy : float
+    sigma : float
     bg : torch.Tensor
     scale_modifier : float
     viewmatrix : torch.Tensor
@@ -172,6 +175,7 @@ class GaussianRasterizationSettings(NamedTuple):
     prefiltered : bool
     debug : bool
     cam_intr: torch.Tensor
+    
 
 class GaussianRasterizer(nn.Module):
     def __init__(self, raster_settings):

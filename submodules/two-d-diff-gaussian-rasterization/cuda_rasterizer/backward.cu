@@ -140,7 +140,7 @@ __device__ void computeColorFromSH(int idx, int deg, int max_coeffs, const glm::
 
 __device__ void print_matrix4x4(glm::mat4 m){
 
-	printf("%f, %f, %f, %f\n%f, %f, %f, %f\n%f, %f, %f, %f\n",
+	printf("%.12f, %.12f, %.12f, %.12f\n%.12f, %.12f, %.12f, %.12f\n%.12f, %.12f, %.12f, %.12f\n",
 		m[0][0],m[0][1],m[0][2],m[0][3],
 		m[1][0],m[1][1],m[1][2],m[1][3],
 		m[2][0],m[2][1],m[2][2],m[2][3],
@@ -150,7 +150,7 @@ __device__ void print_matrix4x4(glm::mat4 m){
 }
 __device__ void print_matrix3x3(glm::mat3x4 m){
 
-	printf("%f, %f, %f\n%f, %f, %f\n%f, %f, %f\n\n",
+	printf("%.12f, %.12f, %.12f\n%.12f, %.12f, %.12f\n%.12f, %.12f, %.12f\n\n",
 		m[0][0],m[0][1],m[0][2],
 		m[1][0],m[1][1],m[1][2],
 		m[2][0],m[2][1],m[2][2]
@@ -229,17 +229,17 @@ __device__ void compute2DGSBBox(
 	// 注意这里梯度不是齐次向量
 	glm::vec4 p_view = glm::vec4(p.x, p.y, p.z, 1.0f); 
 	p_view = p_view * W2C; //相机坐标系
-	if (dL_dmean2D->z >= 0){
+	if (p_view.z >= 0){
 		
-		dL_dmean2D->x = dL_dmean2D->x / p_view.z;
-		dL_dmean2D->y = dL_dmean2D->y / p_view.z;
+		dL_dmean2D->x = dL_dmean2D->x / (p_view.z + 1.e-5f);
+		dL_dmean2D->y = dL_dmean2D->y / (p_view.z + 1.e-5f);
 		// dL_dmean2D->x = dL_dmean2D->x;
 		// dL_dmean2D->y = dL_dmean2D->y;
 		
 	}
 	else{
-		dL_dmean2D->x = dL_dmean2D->x / p_view.z;
-		dL_dmean2D->y = dL_dmean2D->y / p_view.z;
+		dL_dmean2D->x = dL_dmean2D->x / (p_view.z - 1.e-5f);
+		dL_dmean2D->y = dL_dmean2D->y / (p_view.z - 1.e-5f);
 		// dL_dmean2D->x = dL_dmean2D->x;
 		// dL_dmean2D->y = dL_dmean2D->y;
 
@@ -275,11 +275,6 @@ __device__ void compute2DGSBBox(
 	);
 	
 
-
-	
-	
-
-
 	dL_dscale->x = dL_dH[0][0]*R[0][0] + dL_dH[1][0]*R[1][0] + dL_dH[2][0]*R[2][0];
 	dL_dscale->y = dL_dH[0][1]*R[0][1] + dL_dH[1][1]*R[1][1] + dL_dH[2][1]*R[2][1];
 	dL_dscale->z = 0.0f;
@@ -292,9 +287,9 @@ __device__ void compute2DGSBBox(
 	dL_dH[1][1] *= scale.y;
 	dL_dH[2][1] *= scale.y;
 
-	dL_dH[0][2] *= scale.z;
-	dL_dH[1][2] *= scale.z;
-	dL_dH[2][2] *= scale.z;
+	// dL_dH[0][2] *= scale.z;
+	// dL_dH[1][2] *= scale.z;
+	// dL_dH[2][2] *= scale.z;
 	// 此处变为dL_dR
 
 
@@ -370,6 +365,7 @@ renderCUDA(
 	const uint32_t* __restrict__ point_list,
 	int W, int H,
 	const float* __restrict__ bg_color,
+	const float sigma,
 	const float2* __restrict__ points_xy_image,
 	const glm::mat3x3* __restrict__ KWH, //!!!
 	const float4* __restrict__ conic_opacity,
@@ -479,7 +475,7 @@ renderCUDA(
 			const glm::vec3 l = -T_t[1] + pixf.y * T_t[2]; // hv
 			const glm::vec3 point = glm::cross(k,l); 
 			const float dist3d = (point.x * point.x + point.y * point.y) / (point.z * point.z);
-			if (dist3d > 1.0f)
+			if (dist3d > sigma)
 				continue;
 			const float G = exp(-0.5 * dist3d);
 
@@ -652,6 +648,7 @@ void BACKWARD::render(
 	const uint32_t* point_list,
 	int W, int H,
 	const float* bg_color,
+	const float sigma,
 	const float2* means2D,
 	const glm::mat3x3* KWH,
 	const float4* conic_opacity,
@@ -670,6 +667,7 @@ void BACKWARD::render(
 		point_list,
 		W, H,
 		bg_color,
+		sigma,
 		means2D,
 		KWH,
 		conic_opacity,

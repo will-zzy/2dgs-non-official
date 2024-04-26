@@ -26,6 +26,7 @@ namespace BACKWARD
 		const uint32_t* point_list,
 		int W, int H,
 		const float* bg_color,
+		const float sigma,
 		const float2* means2D,
 		const glm::mat3x3* KWH,
 		const float4* conic_opacity,

@@ -41,6 +41,7 @@ RasterizeGaussiansCUDA(
 	const torch::Tensor& scales,
 	const torch::Tensor& rotations,
 	const float scale_modifier,
+	const float sigma,
 	// const torch::Tensor& cov3D_precomp,
 	const torch::Tensor& viewmatrix,
 	const torch::Tensor& projmatrix,
@@ -68,7 +69,7 @@ RasterizeGaussiansCUDA(
 
   torch::Tensor out_color = torch::full({NUM_CHANNELS, H, W}, 0.0, float_opts);
   torch::Tensor out_depth = torch::full({H, W}, 0.0, float_opts);
-  torch::Tensor out_normal = torch::full({H, W, 3}, 0.0, float_opts);
+  torch::Tensor out_normal = torch::full({3, H, W}, 0.0, float_opts);
   torch::Tensor out_opacity = torch::full({H, W}, 0.0, float_opts);
 //   torch::Tensor radii = torch::full({P}, 0, means3D.options().dtype(torch::kInt32));
   torch::Tensor radii = torch::full({P,2}, 0, float_opts);
@@ -103,6 +104,7 @@ RasterizeGaussiansCUDA(
 		opacity.contiguous().data<float>(), 
 		scales.contiguous().data_ptr<float>(),
 		scale_modifier,
+		sigma,
 		rotations.contiguous().data_ptr<float>(),
 		// cov3D_precomp.contiguous().data<float>(), 
 		viewmatrix.contiguous().data<float>(), 
@@ -142,6 +144,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	const torch::Tensor& scales,
 	const torch::Tensor& rotations,
 	const float scale_modifier,
+	const float sigma,
 	// const torch::Tensor& cov3D_precomp,
 	const torch::Tensor& viewmatrix,
     const torch::Tensor& projmatrix,
@@ -189,6 +192,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  colors.contiguous().data<float>(),
 	  scales.data_ptr<float>(),
 	  scale_modifier,
+	  sigma,
 	  rotations.data_ptr<float>(),
 	//   cov3D_precomp.contiguous().data<float>(),
 	  viewmatrix.contiguous().data<float>(),

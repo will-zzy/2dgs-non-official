@@ -81,7 +81,7 @@ def convert_data(data):
 def training(config, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
     first_iter = 0
     tb_writer = prepare_output_and_logger(config.gs_model)
-    gaussians = GaussianModel(config.gs_model.sh_degree)
+    gaussians = GaussianModel(config.gs_model.sh_degree,config.gs_model.sigma)
     scene = Scene(config, gaussians)
     gaussians.training_setup(config.optimizer)
     if checkpoint:
@@ -185,7 +185,7 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
                 gaussians.add_densification_stats(viewspace_point_tensor, visibility_filter)
 
                 if iteration > config.optimizer.densify_from_iter and iteration % config.optimizer.densification_interval == 0:
-                    size_threshold = 20 if iteration > config.optimizer.opacity_reset_interval else None
+                    size_threshold = 500 if iteration > config.optimizer.opacity_reset_interval else None
                     gaussians.densify_and_prune(config.optimizer.densify_grad_threshold, 0.005, scene.cameras_extent, size_threshold)
                 
                 if iteration % config.optimizer.opacity_reset_interval == 0 or (config.dataset.white_background and iteration == config.optimizer.densify_from_iter):
@@ -275,6 +275,7 @@ def load_config(*yaml_files, cli_args=[]):
 
 if __name__ == "__main__":
     # Set up command line argument parser
+    torch.set_printoptions(precision=8,sci_mode=False)
     parser = ArgumentParser(description="Training script parameters")
     lp = ModelParams(parser)
     op = OptimizationParams(parser)

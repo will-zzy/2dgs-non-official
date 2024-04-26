@@ -40,6 +40,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
         # image_width=512, ### Here_is_demo ###
         tanfovx=tanfovx,
         tanfovy=tanfovy,
+        sigma=pc.sigma,
         bg=bg_color,
         scale_modifier=scaling_modifier,
         viewmatrix=viewpoint_camera.world_view_transform,

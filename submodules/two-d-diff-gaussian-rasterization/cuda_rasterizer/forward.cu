@@ -120,6 +120,7 @@ __device__ glm::vec3 computeColorFromSH(int idx, int deg, int max_coeffs, const 
 
 
 __device__ float computeLocalGaussian(
+	const float sigma,
 	const glm::mat3x3 T_t, // KWH
 	const float2 center,  // 像素坐标
 	const float2 point_image // 高斯投影
@@ -145,7 +146,7 @@ __device__ float computeLocalGaussian(
 
 	// float dist = min(dist2d,dist3d); // 1/2/3 sigma以内保留
 	float dist = dist3d;
-	if (dist > 1.0f) return 0.0f;
+	if (dist > sigma) return 0.0f;
 
 
 	return exp(-0.5 * dist);
@@ -159,7 +160,7 @@ __device__ float computeLocalGaussian(
 
 
 __device__ void print_matrix3x3(glm::mat3 M){
-	printf("%f, %f, %f\n%f, %f, %f\n%f, %f, %f\n\n", 
+	printf("%.12f, %.12f, %.12f\n%.12f, %.12f, %.12f\n%.12f, %.12f, %.12f\n\n", 
 	M[0][0],M[0][1],M[0][2],
 	M[1][0],M[1][1],M[1][2],
 	M[2][0],M[2][1],M[2][2]);
@@ -177,6 +178,7 @@ __device__ void print_matrix3x(glm::mat3x4 m){
 }
 
 __device__ void compute2DGSBBox(
+	const float sigma_2,
 	const glm::mat4 viewmatrix, // w2c
 	const glm::mat3 projmatrix, // K
 	const glm::vec4 quaternion,
@@ -190,9 +192,11 @@ __device__ void compute2DGSBBox(
 ){
 
 	glm::mat3 rotation = computeRotScaFromQua(quaternion, scale); // R，尽量少用tanspose
-	normal[0] = rotation[2][0] / scale.z;
-	normal[1] = rotation[2][1] / scale.z;
-	normal[2] = rotation[2][2] / scale.z;
+	normal[0] = rotation[0][2];
+	normal[1] = rotation[1][2];
+	normal[2] = rotation[2][2];
+
+	// printf("%f,%f,%f",normal[0],normal[1],normal[2]);
 	
 	// cout << glm::determinant(rotation) << endl;
 	// glm::vec4 means3D = glm::vec4(p[0],p[1],p[2],1.0f);
@@ -200,9 +204,13 @@ __device__ void compute2DGSBBox(
 	// 计算深度用p_view
 
 	glm::mat3 viewmatrix_R = makeMat3FromMat4(viewmatrix); 
+
+	
 	// glm::mat3 uv_view = viewmatrix_R * rotation; // 3x3，相机坐标系下，高斯椭球的朝向转置，每个行向量是高斯每根轴的朝向与尺度
 	glm::mat3 uv_view = rotation * viewmatrix_R; // 3x3，相机坐标系下，高斯椭球的朝向转置，每个列向量是高斯每根轴的朝向与尺度
-	
+	// print_matrix3x3(uv_view); 
+	// 计算会有精度误差，即使都是32位浮点数，rotation和viewmatrix_R精确到12位小数都一样，但uv_view依然会有0.001%～1%的误差
+	// 通常由于cuda舍入和python不一致所致
 	// std::printf("sucess1");
 
 	// glm::mat4 projmatrix = glm::make_mat4(proj);
@@ -224,9 +232,9 @@ __device__ void compute2DGSBBox(
 	// 	T[i] = T_o_first[i];
 
 	// glm::mat3x3 T_t = glm::transpose(T_o);
-	glm::vec3 temp_point = glm::vec3(1.0f,1.0f,-1.0f);
-	// print_matrix3x(T_o);
-
+	// glm::vec3 temp_point = glm::vec3(1.0f,1.0f,-1.0f);
+	glm::vec3 temp_point = glm::vec3(sigma_2,sigma_2,-1.0f);
+	
 
 	// 见pdf
 	float distance = glm::dot(temp_point,(*T_t)[2] * (*T_t)[2]);
@@ -270,6 +278,7 @@ __global__ void preprocessCUDA(int P, int D, int M, // 计算2dgs的radii，并�
 	const float* orig_points, //means3d
 	const glm::vec3* scales,
 	const float scale_modifier,
+	const float sigma,
 	const glm::vec4* rotations,
 	const float* opacities,
 	const float* shs,
@@ -321,6 +330,7 @@ __global__ void preprocessCUDA(int P, int D, int M, // 计算2dgs的radii，并�
 	// glm::vec3 radi;
 	// glm::vec3 means2D;
 	compute2DGSBBox(
+		sigma * sigma,
 		*viewmatrix,
 		*projmatrix,
 		rotations[idx],
@@ -384,6 +394,7 @@ renderCUDA(
 	int W, int H,
 	const float2* __restrict__ points_xy_image, //!!!
 	const float* __restrict__ means3D, // 3d高斯点
+	const float sigma,
 	const float* __restrict__ depths,
 	const float* __restrict__ normals,
 	// const float* __restrict__ cam_intr, 
@@ -435,7 +446,7 @@ renderCUDA(
 	uint32_t last_contributor = 0;
 	float C[CHANNELS] = { 0 };
 	float depth = 0.0f;
-	float normal[3];
+	float normal[3] = {0};
 
 	// Iterate over batches until all done or range is complete
 	for (int i = 0; i < rounds; i++, toDo -= BLOCK_SIZE)
@@ -469,6 +480,7 @@ renderCUDA(
 			float4 con_o = collected_conic_opacity[j];
 			// float power = -0.5f * (con_o.x * d.x * d.x + con_o.z * d.y * d.y) - con_o.y * d.x * d.y;
 			float g = computeLocalGaussian(
+				sigma,
 				KWH[collected_id[j]],
 				pixf,
 				xy
@@ -498,10 +510,10 @@ renderCUDA(
 				C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
 
 			depth += depths[collected_id[j]] * alpha * T;
-			// normal[0] += normals[collected_id[j] * 3] * alpha * T;
-			// normal[1] += normals[collected_id[j] * 3 + 1] * alpha * T;
-			// normal[2] += normals[collected_id[j] * 3 + 2] * alpha * T;
-
+			normal[0] += normals[collected_id[j] * 3] * alpha * T;
+			normal[1] += normals[collected_id[j] * 3 + 1] * alpha * T;
+			normal[2] += normals[collected_id[j] * 3 + 2] * alpha * T;
+			// printf("%f,%f,%f\n",normal[0],normal[1],normal[2]);
 			T = test_T;
 
 			// Keep track of last range entry to update this
@@ -518,7 +530,7 @@ renderCUDA(
 		n_contrib[pix_id] = last_contributor;
 		for (int ch = 0; ch < CHANNELS; ch++){
 			out_color[ch * H * W + pix_id] = C[ch] + T * bg_color[ch];
-			// out_normal[ch * H * W + pix_id] = normal[ch];
+			out_normal[ch * H * W + pix_id] = normal[ch];
 		}
 		out_depth[pix_id] = depth;
 		out_opacity[pix_id] = 1 - T;
@@ -532,6 +544,7 @@ void FORWARD::render(
 	int W, int H,
 	const float2* points_xy_image,
 	const float* means3D,
+	const float sigma,
 	const float* depths,
 	const float* normals,
 	// const float* cam_intr,
@@ -554,6 +567,7 @@ void FORWARD::render(
 		W, H,
 		points_xy_image,
 		means3D,
+		sigma,
 		depths,
 		normals,
 		// cam_intr,
@@ -575,6 +589,7 @@ void FORWARD::preprocess(int P, int D, int M,
 	const float* means3D,
 	const glm::vec3* scales,
 	const float scale_modifier,
+	const float sigma,
 	const glm::vec4* rotations,
 	const float* opacities,
 	const float* shs,
@@ -612,6 +627,7 @@ void FORWARD::preprocess(int P, int D, int M,
 		means3D,
 		scales,
 		scale_modifier,
+		sigma,
 		rotations,
 		opacities,
 		shs,
