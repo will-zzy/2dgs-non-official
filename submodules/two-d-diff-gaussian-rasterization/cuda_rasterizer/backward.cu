@@ -227,11 +227,10 @@ __device__ void compute2DGSBBox(
 	*dL_dmean2D = *dL_dmeans;
 
 	// 注意这里梯度不是齐次向量
-	glm::vec4 p_view = glm::vec4(p.x, p.y, p.z, 1.0f);
-	p_view = p_view * W2C;
+	glm::vec4 p_view = glm::vec4(p.x, p.y, p.z, 1.0f); 
+	p_view = p_view * W2C; //相机坐标系
 	if (dL_dmean2D->z >= 0){
 		
-	glm::vec4 p_view = glm::vec4(p.x, p.y, p.z, 1.0f);
 		dL_dmean2D->x = dL_dmean2D->x / p_view.z;
 		dL_dmean2D->y = dL_dmean2D->y / p_view.z;
 		// dL_dmean2D->x = dL_dmean2D->x;
