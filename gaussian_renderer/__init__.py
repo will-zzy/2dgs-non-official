@@ -109,10 +109,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
         cov3D_precomp = cov3D_precomp)
     # end = time.time()
     # print(end-start)
-<<<<<<< HEAD
-=======
     # radii_scalar,_ = torch.max(radii,dim=-1)
->>>>>>> 2dgs_debug_python
     radii_scalar = torch.norm(radii,dim=-1)
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.
