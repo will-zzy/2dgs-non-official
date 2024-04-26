@@ -65,7 +65,7 @@ optimizer:
 loss:
   lambda_rgb_nerf: 1.
   lambda_rgb_gs: 1.
-  lambda_ssim: 0.4
+  lambda_ssim: 0.25
   lambda_eikonal: 0.
   lambda_s3im: 0.
 
