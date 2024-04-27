@@ -146,7 +146,8 @@ __device__ float computeLocalGaussian(
 
 	// float dist = min(dist2d,dist3d); // 1/2/3 sigma以内保留
 	float dist = dist3d;
-	if (dist > sigma) return 0.0f;
+	if (dist > sigma * sigma) return 0.0f;
+	// if (dist > sigma) return 0.0f;
 
 
 	return exp(-0.5 * dist);

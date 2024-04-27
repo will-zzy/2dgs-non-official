@@ -388,6 +388,7 @@ renderCUDA(
 	const uint32_t pix_id = W * pix.y + pix.x;
 	const float2 pixf = { (float)pix.x, (float)pix.y };
 	const float coff = 1 / (sqrt(2) / 2);
+	const float sigma_2 = sigma * sigma;
 
 
 	const bool inside = pix.x < W&& pix.y < H;
@@ -475,7 +476,7 @@ renderCUDA(
 			const glm::vec3 l = -T_t[1] + pixf.y * T_t[2]; // hv
 			const glm::vec3 point = glm::cross(k,l); 
 			const float dist3d = (point.x * point.x + point.y * point.y) / (point.z * point.z);
-			if (dist3d > sigma)
+			if (dist3d > sigma_2)
 				continue;
 			const float G = exp(-0.5 * dist3d);
 
