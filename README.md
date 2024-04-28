@@ -2,7 +2,7 @@ This code is a non-official 2DGS implementation. The current code only implement
 Ideally, in any environment configured with 3dgs, first run <br>
 ```pip install submodules/two-d-diff-gaussian-rasterization```<br>
 then execute <br>
-```python --conf_path ./config/base.yaml```<br>
+```python train.py --conf_path ./config/base.yaml```<br>
 
 Here are some examples. A more comprehensive comparison will be released later.
 dtu scan65 (4000 steps)

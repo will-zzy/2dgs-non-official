@@ -178,17 +178,62 @@ __device__ glm::mat3 makeMat3FromMat4x4(glm::mat4 mat4x4){ // 取前三行三列
 
 
 __device__ void compute2DGSBBox(
+	const float sigma,
 	const glm::mat4 W2C, // w2c
 	const glm::mat3 projmatrix, // intrinsic
+	const glm::mat3 KWH, 
 	const glm::vec4 quaternion,
 	const glm::vec3 scale,
 	const float3 p,
-	const glm::mat3x3 dL_dKWH,
-	glm::vec3* dL_dmean2D,
+	const glm::vec3* dL_dmeans2D,
+	glm::mat3x3 dL_dKWH,
+	float* p2_gradient,
 	glm::vec3* dL_dmeans,
 	glm::vec3* dL_dscale,
 	glm::vec4* dL_drot
 ){
+	
+	// filter
+	// if (!(-1.e-5f < dL_dmeans2D->x && 1.e-5f > dL_dmeans2D->x) || !(-1.e-5f < dL_dmeans2D->y && 1.e-5f > dL_dmeans2D->y)){
+		
+	// 	float sigma_2 = sigma * sigma;
+	// 	glm::vec3 temp_point = glm::vec3(sigma_2,sigma_2,-1.0f);
+	// 	const float a = glm::dot(temp_point, KWH[2] * KWH[2]);
+	// 	const float a2_2 = 2 * a * a;
+	// 	const float bx = 2 * glm::dot(temp_point, KWH[0] * KWH[2]);
+	// 	const float by = 2 * glm::dot(temp_point, KWH[1] * KWH[2]);
+
+	// 	const float dL_da = dL_dmeans2D->x * bx / a2_2 + dL_dmeans2D->y * by / a2_2;
+	// 	const float dL_dbx = -dL_dmeans2D->x / a2_2;
+	// 	const float dL_dby = -dL_dmeans2D->y / a2_2;
+		
+	// 	// da
+	// 	dL_dKWH[2][0] += 2 * dL_da * sigma_2 * KWH[2][0];
+	// 	dL_dKWH[2][1] += 2 * dL_da * sigma_2 * KWH[2][1];
+	// 	dL_dKWH[2][2] -= 2 * dL_da * KWH[2][2];
+
+	// 	// dbx
+	// 	dL_dKWH[0][0] -= 2 * dL_dbx * sigma_2 * KWH[2][0];
+	// 	dL_dKWH[0][1] -= 2 * dL_dbx * sigma_2 * KWH[2][1];
+	// 	dL_dKWH[0][2] += 2 * dL_dbx * KWH[2][2];
+
+	// 	dL_dKWH[2][0] -= 2 * dL_dbx * sigma_2 * KWH[0][0];
+	// 	dL_dKWH[2][1] -= 2 * dL_dbx * sigma_2 * KWH[0][1];
+	// 	dL_dKWH[2][2] += 2 * dL_dbx * KWH[0][2];
+
+	// 	// dby
+	// 	dL_dKWH[1][0] -= 2 * dL_dby * sigma_2 * KWH[2][0];
+	// 	dL_dKWH[1][1] -= 2 * dL_dby * sigma_2 * KWH[2][1];
+	// 	dL_dKWH[1][2] += 2 * dL_dby * KWH[2][2];
+
+	// 	dL_dKWH[2][0] -= 2 * dL_dby * sigma_2 * KWH[1][0];
+	// 	dL_dKWH[2][1] -= 2 * dL_dby * sigma_2 * KWH[1][1];
+	// 	dL_dKWH[2][2] += 2 * dL_dby * KWH[1][2];
+	// }
+
+
+
+
 	// glm::mat4x3 dL_dKWH = glm::transpose(dL_dKWH);
 	float fx = projmatrix[0][0];
 	float fy = projmatrix[1][1];
@@ -224,7 +269,8 @@ __device__ void compute2DGSBBox(
 	dL_dmeans->z = dL_dM[2][2];
 	// 此处的三维点梯度dL_dmeans是相机坐标系下的三维点梯度
 	// 将质心的梯度投影到像素平面上
-	*dL_dmean2D = *dL_dmeans;
+	p2_gradient[0] = (*dL_dmeans).x;
+	p2_gradient[1] = (*dL_dmeans).y;
 
 	// 注意这里梯度不是齐次向量
 	glm::vec4 p_view = glm::vec4(p.x, p.y, p.z, 1.0f); 
@@ -233,16 +279,16 @@ __device__ void compute2DGSBBox(
 		
 		// dL_dmean2D->x = fx * dL_dmean2D->x / (p_view.z + 1.e-8f);
 		// dL_dmean2D->y = fy * dL_dmean2D->y / (p_view.z + 1.e-8f);
-		dL_dmean2D->x = dL_dmean2D->x / (p_view.z + 1.e-8f);
-		dL_dmean2D->y = dL_dmean2D->y / (p_view.z + 1.e-8f);
+		p2_gradient[0] = p2_gradient[0] / (p_view.z + 1.e-8f);
+		p2_gradient[1] = p2_gradient[1] / (p_view.z + 1.e-8f);
 		// dL_dmean2D->x = dL_dmean2D->x;
 		// dL_dmean2D->y = dL_dmean2D->y;
 	}
 	else{
 		// dL_dmean2D->x = fx * dL_dmean2D->x / (p_view.z - 1.e-8f);
 		// dL_dmean2D->y = fy * dL_dmean2D->y / (p_view.z - 1.e-8f);
-		dL_dmean2D->x = dL_dmean2D->x / (p_view.z - 1.e-8f);
-		dL_dmean2D->y = dL_dmean2D->y / (p_view.z - 1.e-8f);
+		p2_gradient[0] = p2_gradient[0] / (p_view.z - 1.e-8f);
+		p2_gradient[1] = p2_gradient[1] / (p_view.z - 1.e-8f);
 		// dL_dmean2D->x = dL_dmean2D->x;
 		// dL_dmean2D->y = dL_dmean2D->y;
 	}
@@ -310,6 +356,7 @@ template<int C>
 __global__ void preprocessCUDA(
 	int P, int D, int M,
 	const float3* means,
+	const float sigma,
 	const float* radii,
 	const float* shs,
 	const bool* clamped,
@@ -319,8 +366,10 @@ __global__ void preprocessCUDA(
 	const glm::mat4* viewmatrix, // w2c.T
 	const glm::mat3* projmatrix, // intrinsic.T
 	const glm::vec3* campos,
-	const glm::mat3x3* dL_dKWH,
+	const glm::mat3x3* KWH,
+	glm::mat3x3* dL_dKWH,
 	glm::vec3* dL_dmean2D,
+	float* p2_gradient,
 	glm::vec3* dL_dmeans, // 对质心的导数
 	float* dL_dcolor,
 	// float* dL_dcov3D,
@@ -344,13 +393,16 @@ __global__ void preprocessCUDA(
 	// 后续如果要加的话需要加一条KWH -> point_image_xy -> g的路径
 	// 这条路径可以在preprocess中实现（因为路径通过dL_dmean2D）
 	compute2DGSBBox(
+		sigma,
 		*viewmatrix,
 		*projmatrix,
+		KWH[idx],
 		rotations[idx],
 		scales[idx],
 		means[idx],
-		dL_dKWH[idx],
 		dL_dmean2D + idx,
+		dL_dKWH[idx],
+		p2_gradient + idx * 2,
 		dL_dmeans + idx,
 		dL_dscale + idx,
 		dL_drot + idx
@@ -393,6 +445,7 @@ renderCUDA(
 	const uint32_t pix_id = W * pix.y + pix.x;
 	const float2 pixf = { (float)pix.x, (float)pix.y };
 	const float coff = 1 / (sqrt(2) / 2);
+	const float coff_2 = coff * coff;
 	const float sigma_2 = sigma * sigma;
 
 
@@ -467,7 +520,7 @@ renderCUDA(
 				continue;
 
 			// Compute blending values, as before.
-			// const float2 xy = collected_xy[j]; // 高斯投影点，如果要滤波会用到
+			const float2 xy = collected_xy[j]; // 高斯投影点，如果要滤波会用到
 
 			// const float2 d = { xy.x - pixf.x, xy.y - pixf.y };
 			const float4 con_o = collected_conic_opacity[j];
@@ -480,10 +533,21 @@ renderCUDA(
 			const glm::vec3 k = -T_t[0] + pixf.x * T_t[2]; // hu
 			const glm::vec3 l = -T_t[1] + pixf.y * T_t[2]; // hv
 			const glm::vec3 point = glm::cross(k,l); 
-			const float dist3d = (point.x * point.x + point.y * point.y) / (point.z * point.z);
-			if (dist3d > sigma_2)
+			const float dist3d = (point.x * point.x + point.y * point.y) / (point.z * point.z);			
+			const float dist2d = coff_2 * ((xy.x - pixf.x) * (xy.x - pixf.x) + (xy.y - pixf.y) * (xy.y - pixf.y));
+
+			float dist = dist3d;
+			// float dist = 0.0f;
+			// if(dist3d > dist2d){
+			// 	dist = dist2d;
+			// }
+			// else{
+			// 	dist = dist3d;
+			// }
+			
+			if (dist > sigma_2)
 				continue;
-			const float G = exp(-0.5 * dist3d);
+			const float G = exp(-0.5 * dist);
 
 			const float alpha = min(0.99f, con_o.w * G); // 这里的alpha指ag
 			if (alpha < 1.0f / 255.0f)
@@ -551,7 +615,10 @@ renderCUDA(
 			atomicAdd(&dL_dKWH[global_id][2][1], -dL_dd * (dd_dp.x * (-x * l.z + y * k.z) + dd_dp.z * ( x * l.x - y * k.x)));
 			atomicAdd(&dL_dKWH[global_id][2][2], -dL_dd * (dd_dp.x * ( x * l.y - y * k.y) + dd_dp.y * (-x * l.x + y * k.x)));
 
-
+			// if(dist3d > dist2d){
+			// 	atomicAdd(&(dL_dmean2D[global_id].x),-coff_2 * dL_dG * G * (xy.x - pixf.x));
+			// 	atomicAdd(&(dL_dmean2D[global_id].y),-coff_2 * dL_dG * G * (xy.y - pixf.y));
+			// }
 
 			// Update gradients w.r.t. opacity of the Gaussian
 			atomicAdd(&(dL_dopacity[global_id]), G * dL_dalpha);
@@ -563,6 +630,7 @@ renderCUDA(
 void BACKWARD::preprocess(
 	int P, int D, int M,
 	const float3* means3D,
+	const float sigma,
 	const float* radii,
 	const float* shs,
 	const bool* clamped,
@@ -575,8 +643,10 @@ void BACKWARD::preprocess(
 	// const float focal_x, float focal_y,
 	// const float tan_fovx, float tan_fovy,
 	const glm::vec3* campos,
-	const glm::mat3x3* dL_dKWH,
+	const glm::mat3x3* KWH,
+	glm::mat3x3* dL_dKWH, // 滤波时还需要更改
 	glm::vec3* dL_dmean2D,
+	float* p2_gradient,
 	// const float* dL_dconic,
 	glm::vec3* dL_dmean3D,
 	float* dL_dcolor,
@@ -595,19 +665,7 @@ void BACKWARD::preprocess(
 	// Somewhat long, thus it is its own kernel rather than being part of 
 	// "preprocess". When done, loss gradient w.r.t. 3D means has been
 	// modified and gradient w.r.t. 3D covariance matrix has been computed.	
-	// computeCov2DCUDA << <(P + 255) / 256, 256 >> > (
-	// 	P,
-	// 	means3D,
-	// 	radii,
-	// 	// cov3Ds,
-	// 	focal_x,
-	// 	focal_y,
-	// 	tan_fovx,
-	// 	tan_fovy,
-	// 	viewmatrix,
-	// 	dL_dconic,
-	// 	(float3*)dL_dmean3D,
-	// 	dL_dcov3D);
+	
 
 	// Propagate gradients for remaining steps: finish 3D mean gradients,
 	// propagate color gradients to SH (if desireD), propagate 3D covariance
@@ -615,6 +673,7 @@ void BACKWARD::preprocess(
 	preprocessCUDA<NUM_CHANNELS> << < (P + 255) / 256, 256 >> > (
 		P, D, M,
 		(float3*)means3D,
+		sigma,
 		radii,
 		shs,
 		clamped,
@@ -624,8 +683,10 @@ void BACKWARD::preprocess(
 		viewmatrix,
 		projmatrix,
 		campos,
+		KWH,
 		dL_dKWH,
 		dL_dmean2D,
+		p2_gradient,
 		(glm::vec3*)dL_dmean3D,
 		dL_dcolor,
 		// dL_dcov3D,
