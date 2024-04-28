@@ -146,7 +146,7 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
         depth_write /= opacity_map
         # opacity_write = render_pkg['opacity']
         depth_write = get_grayscale_image_(depth_write,data_range=[0,20],cmap='jet')
-        output_dir = os.path.join("/data3/zzy/public_data/tankandtemples/intermediate/Family/output",f"{0}")
+        output_dir = os.path.join(config.gs_model.output_dir,f"{0}")
         os.makedirs(output_dir,exist_ok=True)
         imageio.imwrite(os.path.join(output_dir,f"{0}_rgb.jpg"),(image_write.permute(1,2,0).detach().cpu().numpy()*255).astype(np.uint8))
         cv2.imwrite(os.path.join(output_dir,f"{0}_depth.jpg"),depth_write)
@@ -172,7 +172,7 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
                 progress_bar.close()
 
             # Log and save
-            training_report(tb_writer, iteration, Ll1, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, (config.pipeline, background))
+            training_report(tb_writer, iteration, Ll1, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, (config.pipeline, background),output_dir = os.path.join(config.gs_model.output_dir,f"{iteration}"))
             if (iteration in saving_iterations):
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration)
@@ -222,7 +222,7 @@ def prepare_output_and_logger(args):
         print("Tensorboard not available: not logging progress")
     return tb_writer
 
-def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_iterations, scene : Scene, renderFunc, renderArgs):
+def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_iterations, scene : Scene, renderFunc, renderArgs, output_dir):
     if tb_writer:
         tb_writer.add_scalar('train_loss_patches/l1_loss', Ll1.item(), iteration)
         tb_writer.add_scalar('train_loss_patches/total_loss', loss.item(), iteration)
@@ -234,7 +234,6 @@ def training_report(tb_writer, iteration, Ll1, loss, l1_loss, elapsed, testing_i
         validation_configs = ({'name': 'test', 'cameras' : scene.getTestCameras()}, 
                               {'name': 'train', 'cameras' : [scene.getTrainCameras()[idx % len(scene.getTrainCameras())] for idx in range(5, 30, 5)]})
         
-        output_dir = os.path.join("/data3/zzy/public_data/tankandtemples/intermediate/Family/output",f"{iteration}")
         for config in validation_configs:
             if config['cameras'] and len(config['cameras']) > 0:
                 l1_test = 0.0

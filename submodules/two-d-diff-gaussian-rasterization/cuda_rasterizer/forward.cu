@@ -448,7 +448,7 @@ renderCUDA(
 	float C[CHANNELS] = { 0 };
 	float depth = 0.0f;
 	float normal[3] = {0};
-
+	bool depth_done = false;
 	// Iterate over batches until all done or range is complete
 	for (int i = 0; i < rounds; i++, toDo -= BLOCK_SIZE)
 	{
@@ -505,17 +505,21 @@ renderCUDA(
 				done = true;
 				continue;
 			}
-
+			
 			// Eq. (3) from 3D Gaussian splatting paper.
 			for (int ch = 0; ch < CHANNELS; ch++)
 				C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
 
-			depth += depths[collected_id[j]] * alpha * T;
+			// depth += depths[collected_id[j]] * alpha * T;
 			normal[0] += normals[collected_id[j] * 3] * alpha * T;
 			normal[1] += normals[collected_id[j] * 3 + 1] * alpha * T;
 			normal[2] += normals[collected_id[j] * 3 + 2] * alpha * T;
 			// printf("%f,%f,%f\n",normal[0],normal[1],normal[2]);
 			T = test_T;
+			if(T < 0.5 && !depth_done){
+				depth_done = true;
+				depth = depths[collected_id[j]];
+			}
 
 			// Keep track of last range entry to update this
 			// pixel.

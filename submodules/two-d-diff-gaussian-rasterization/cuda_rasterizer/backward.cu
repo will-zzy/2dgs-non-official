@@ -231,18 +231,20 @@ __device__ void compute2DGSBBox(
 	p_view = p_view * W2C; //相机坐标系
 	if (p_view.z >= 0){
 		
-		dL_dmean2D->x = dL_dmean2D->x / (p_view.z + 1.e-5f);
-		dL_dmean2D->y = dL_dmean2D->y / (p_view.z + 1.e-5f);
+		// dL_dmean2D->x = fx * dL_dmean2D->x / (p_view.z + 1.e-8f);
+		// dL_dmean2D->y = fy * dL_dmean2D->y / (p_view.z + 1.e-8f);
+		dL_dmean2D->x = dL_dmean2D->x / (p_view.z + 1.e-8f);
+		dL_dmean2D->y = dL_dmean2D->y / (p_view.z + 1.e-8f);
 		// dL_dmean2D->x = dL_dmean2D->x;
 		// dL_dmean2D->y = dL_dmean2D->y;
-		
 	}
 	else{
-		dL_dmean2D->x = dL_dmean2D->x / (p_view.z - 1.e-5f);
-		dL_dmean2D->y = dL_dmean2D->y / (p_view.z - 1.e-5f);
+		// dL_dmean2D->x = fx * dL_dmean2D->x / (p_view.z - 1.e-8f);
+		// dL_dmean2D->y = fy * dL_dmean2D->y / (p_view.z - 1.e-8f);
+		dL_dmean2D->x = dL_dmean2D->x / (p_view.z - 1.e-8f);
+		dL_dmean2D->y = dL_dmean2D->y / (p_view.z - 1.e-8f);
 		// dL_dmean2D->x = dL_dmean2D->x;
 		// dL_dmean2D->y = dL_dmean2D->y;
-
 	}
 
 	//世界坐标系三维点梯度计算正确
@@ -327,10 +329,13 @@ __global__ void preprocessCUDA(
 	glm::vec4* dL_drot)
 {   
 	auto idx = cg::this_grid().thread_rank();
-	
-	float my_radius = sqrt(radii[2 * idx]*radii[2 * idx] + radii[2 * idx + 1]*radii[2 * idx + 1]);
-	if (idx >= P || !(my_radius > 0.00001f))
+	if (idx >= P)
 		return;
+	float my_radius = sqrt(radii[2 * idx]*radii[2 * idx] + radii[2 * idx + 1]*radii[2 * idx + 1]);
+	if (!(my_radius > 0.00001f))
+		return;
+
+	
 	// print_matrix3x3(dL_dKWH[idx]);
 
 	// float3 m = means[idx]; // 三维点坐标
@@ -547,20 +552,6 @@ renderCUDA(
 			atomicAdd(&dL_dKWH[global_id][2][2], -dL_dd * (dd_dp.x * ( x * l.y - y * k.y) + dd_dp.y * (-x * l.x + y * k.x)));
 
 
-			// const float gdx = G * d.x;
-			// const float gdy = G * d.y;
-			// const float dG_ddelx = -gdx * con_o.x - gdy * con_o.y;
-			// const float dG_ddely = -gdy * con_o.z - gdx * con_o.y;
-
-			// // Update gradients w.r.t. 2D mean position of the Gaussian
-			// // ddelx_dx = 0.5 * W
-			// atomicAdd(&dL_dmean2D[global_id].x, dL_dG * dG_ddelx * ddelx_dx); 
-			// atomicAdd(&dL_dmean2D[global_id].y, dL_dG * dG_ddely * ddely_dy);
-
-			// // Update gradients w.r.t. 2D covariance (2x2 matrix, symmetric)
-			// atomicAdd(&dL_dconic2D[global_id].x, -0.5f * gdx * d.x * dL_dG); //a
-			// atomicAdd(&dL_dconic2D[global_id].y, -0.5f * gdx * d.y * dL_dG); //b
-			// atomicAdd(&dL_dconic2D[global_id].w, -0.5f * gdy * d.y * dL_dG); //c
 
 			// Update gradients w.r.t. opacity of the Gaussian
 			atomicAdd(&(dL_dopacity[global_id]), G * dL_dalpha);

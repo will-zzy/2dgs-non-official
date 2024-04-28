@@ -135,10 +135,13 @@ class GaussianModel:
         if self.active_sh_degree < self.max_sh_degree:
             self.active_sh_degree += 1
 
-    def create_from_pcd(self, pcd : BasicPointCloud, spatial_lr_scale : float, init_rots = False):
+    def create_from_pcd(self, pcd : BasicPointCloud, spatial_lr_scale : float, init: dict):
         self.spatial_lr_scale = spatial_lr_scale
         fused_point_cloud = torch.tensor(np.asarray(pcd.points)).float().cuda()
-        fused_color = RGB2SH(torch.tensor(np.asarray(pcd.colors)).float().cuda())
+        if init.color_random_init:
+            fused_color = RGB2SH(torch.rand(pcd.colors.shape).float().cuda())
+        else:
+            fused_color = RGB2SH(torch.tensor(np.asarray(pcd.colors)).float().cuda())
         fused_normal = pcd.normals # 使用open3d根据稀疏点云计算的表面法向
         
         features = torch.zeros((fused_color.shape[0], 3, (self.max_sh_degree + 1) ** 2)).float().cuda()
@@ -147,14 +150,14 @@ class GaussianModel:
 
         print("Number of points at initialisation : ", fused_point_cloud.shape[0])
 
-        dist2 = torch.clamp_max(torch.clamp_min(distCUDA2(torch.from_numpy(np.asarray(pcd.points)).float().cuda()), 0.0000001), 5)
+        dist2 = torch.clamp_min(distCUDA2(torch.from_numpy(np.asarray(pcd.points)).float().cuda()), 0.0000001)
         
         # dist2 = torch.ones_like(dist2) * torch.median(dist2)
         scales = torch.log(torch.sqrt(dist2))[...,None].repeat(1, 3)
         scales[:,2] = -1e4
         
         
-        if init_rots:
+        if not init.rots_random_init:
             with torch.no_grad():
                 orth = Orthogonalization()
                 rots_rand = torch.rand([fused_point_cloud.shape[0], 3, 3], device="cuda") + torch.eye(3, device="cuda") * 0.5
@@ -414,7 +417,7 @@ class GaussianModel:
         # Extract points that satisfy the gradient condition
         padded_grad = torch.zeros((n_init_points), device="cuda")
         padded_grad[:grads.shape[0]] = grads.squeeze()
-        selected_pts_mask = torch.where(padded_grad >= grad_threshold, True, False)
+        selected_pts_mask = torch.where(padded_grad >= grad_threshold / 400, True, False)
         # selected_pts_mask = torch.where(padded_grad < grad_threshold, True, False)
         selected_pts_mask = torch.logical_and(selected_pts_mask,
                                               torch.max(self.get_scaling, dim=1).values > self.percent_dense*scene_extent)
@@ -461,7 +464,7 @@ class GaussianModel:
         prune_mask = (self.get_opacity < min_opacity).squeeze()
         if max_screen_size: # 去除过大的gs
             big_points_vs = self.max_radii2D > max_screen_size
-            big_points_ws = self.get_scaling.max(dim=1).values > 0.4 * extent # 0.1
+            big_points_ws = self.get_scaling.max(dim=1).values > 0.2 * extent # 0.1
             prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
         self.prune_points(prune_mask)
 

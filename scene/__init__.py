@@ -104,7 +104,7 @@ class Scene:
                                                            "iteration_" + str(self.loaded_iter),
                                                            "point_cloud.ply"))
         else:
-            self.gaussians.create_from_pcd(self.scene_info.point_cloud, self.cameras_extent,init_rots=self.config.gs_model.init_rots)
+            self.gaussians.create_from_pcd(self.scene_info.point_cloud, self.cameras_extent,init=self.config.gs_model.init)
 
     def load_cam(self):
         if os.path.exists(os.path.join(self.config.root_dir, "sparse")):

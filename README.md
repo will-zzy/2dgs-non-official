@@ -4,6 +4,15 @@ Ideally, in any environment configured with 3dgs, first run <br>
 then execute <br>
 ```python --conf_path ./config/base.yaml```<br>
 
+Here are some examples. A more comprehensive comparison will be released later.
+dtu scan65 (4000 steps)
+<p align="center">
+  <img src='./assets/dtu_scan65_4000_rgb.jpg'>
+</p><br>
+Tanks and Temples (5000steps)
+<p align="center">
+  <img src='./assets/truck_5000_rgb.jpg'>
+</p><br>
 
 
 

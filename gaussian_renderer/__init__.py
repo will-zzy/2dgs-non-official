@@ -75,7 +75,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
     # from SHs in Python, do it. If not, then SH -> RGB conversion will be done by rasterizer.
     shs = None
     colors_precomp = None
-    
+    # shs = pc.get_features
     ### Here_is_demo ###
     # import matplotlib
     # import numpy as np 

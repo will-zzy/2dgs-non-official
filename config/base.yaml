@@ -38,12 +38,15 @@ gs_model:
   model_path:
   load_iteration: false
   sh_degree: 3
-  init_rots: false
+  
   images: "images"
   downsample: ${dataset.downsample}
   # resolution: -1
   white_background: ${dataset.white_background}
   eval: ${dataset.eval}
+  init:
+    color_random_init: false
+    rots_random_init: false
 
 optimizer:
   iterations: 30000
@@ -55,7 +58,7 @@ optimizer:
   opacity_lr: 5.e-2 # 5.e-2
   scaling_lr: 5.e-3 # 5.e-3
   rotation_lr: 1.e-3
-  percent_dense: 5.e-3 # 1.e-2
+  percent_dense: 1.e-2 # 1.e-2
   densification_interval: 100 # 100
   opacity_reset_interval: 3000 # 3000
   densify_from_iter: 500 # 500
