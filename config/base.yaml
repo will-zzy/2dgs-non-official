@@ -1,8 +1,8 @@
 
 
 # case_name: sheep55-ngptest
-# case_name: truck
-case_name: scan65
+case_name: truck
+# case_name: scan65
 # case_name: ObliqueSBY1580
 root_dir: /data3/zzy/public_data/${case_name}
 # root_dir: /data3/zzy/data_lab/${case_name}

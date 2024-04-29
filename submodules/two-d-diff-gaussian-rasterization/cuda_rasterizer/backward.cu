@@ -607,8 +607,8 @@ renderCUDA(
 			dLrgb_dalpha += (-T_final / (1.f - alpha)) * bg_dot_dpixel; // 有背景则有一个固定值
 
 
-			dL_dalpha = dLrgb_dalpha + dLdist_dalpha;
-			// dL_dalpha = dLrgb_dalpha;
+			// dL_dalpha = dLrgb_dalpha + dLdist_dalpha;
+			dL_dalpha = dLrgb_dalpha;
 			// T, G, dL_dG, 计算正确
 			// Helpful reusable temporary variables
 			const float dL_dG = con_o.w * dL_dalpha; // dl/dg_i

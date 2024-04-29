@@ -156,7 +156,10 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
         gt_image = viewpoint_cam.get_image.cuda()
         # gt_image = torch.zeros_like(image).cuda()
         Ll1 = l1_loss(image, gt_image)
-        loss = (1.0 - config.loss.lambda_ssim) * Ll1 + config.loss.lambda_ssim * (1.0 - ssim(image, gt_image)) + 0.1 * distort_loss.sum() / (distort_loss.shape[0]*distort_loss.shape[1])
+        if iteration < 670:
+            loss = (1.0 - config.loss.lambda_ssim) * Ll1 + config.loss.lambda_ssim * (1.0 - ssim(image, gt_image))
+        else:
+            loss = (1.0 - config.loss.lambda_ssim) * Ll1 + config.loss.lambda_ssim * (1.0 - ssim(image, gt_image)) + 0.1 * distort_loss.sum() / (distort_loss.shape[0]*distort_loss.shape[1])
         # loss = (1.0 - config.loss.lambda_ssim) * Ll1 
         loss.backward()
 
