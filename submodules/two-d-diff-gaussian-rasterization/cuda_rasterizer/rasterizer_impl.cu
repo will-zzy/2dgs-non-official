@@ -232,10 +232,12 @@ int CudaRasterizer::Rasterizer::forward(
 	const float* cam_intr,
 	// const float tan_fovx, float tan_fovy,
 	const bool prefiltered,
+	float* ADD_2,
 	float* out_color,
 	float* out_depth,
 	float* out_normal,
 	float* out_opacity,
+	float* distort,
 	float* radii,
 	bool debug)
 {
@@ -310,6 +312,7 @@ int CudaRasterizer::Rasterizer::forward(
 	// Retrieve total number of Gaussian instances to launch and resize aux buffers
 	int num_rendered;
 	CHECK_CUDA(cudaMemcpy(&num_rendered, geomState.point_offsets + P - 1, sizeof(int), cudaMemcpyDeviceToHost), debug);
+	// 此时point_offsets的最后一个元素为所有高斯覆盖tiles的总数，长度为P
 
 	size_t binning_chunk_size = required<BinningState>(num_rendered);
 	char* binning_chunkptr = binningBuffer(binning_chunk_size);
@@ -339,7 +342,8 @@ int CudaRasterizer::Rasterizer::forward(
 		binningState.point_list_unsorted, binningState.point_list,
 		num_rendered, 0, 32 + bit), debug)
 
-	CHECK_CUDA(cudaMemset(imgState.ranges, 0, tile_grid.x * tile_grid.y * sizeof(uint2)), debug);
+		CHECK_CUDA(cudaMemset(imgState.ranges, 0, tile_grid.x * tile_grid.y * sizeof(uint2)), debug);
+		// CHECK_CUDA(cudaMemset(imgState.ranges, 0, tile_grid.x * tile_grid.y * sizeof(uint2)), debug);
 	// std::cout << num_rendered << std::endl; // 第一次248402，第二次258541
 	
 	// Identify start and end of per-tile workloads in sorted list
@@ -370,13 +374,15 @@ int CudaRasterizer::Rasterizer::forward(
 		(glm::mat3x3*)geomState.KWH,
 		feature_ptr,
 		geomState.conic_opacity,
+		(glm::vec3*)ADD_2, // 赋值
 		imgState.accum_alpha,
 		imgState.n_contrib,
 		background,
 		out_color,
 		out_depth,
 		out_normal,
-		out_opacity), debug)
+		out_opacity,
+		distort), debug)
 
 	return num_rendered;
 }
@@ -389,6 +395,7 @@ void CudaRasterizer::Rasterizer::backward(
 	const int width, int height,
 	const float* means3D,
 	const float* shs,
+	const float* ADD_2,
 	const float* colors_precomp,
 	const float* scales,
 	const float scale_modifier,
@@ -404,6 +411,7 @@ void CudaRasterizer::Rasterizer::backward(
 	char* binning_buffer,
 	char* img_buffer,
 	const float* dL_dpix,
+	const float* dL_dout_distort,
 	float* dL_dKWH,
 	float* dL_dmean2D,
 	float* p2_gradient,
@@ -451,6 +459,9 @@ void CudaRasterizer::Rasterizer::backward(
 		imgState.accum_alpha,
 		imgState.n_contrib,
 		dL_dpix, // 输入
+		dL_dout_distort,
+		(glm::vec3*)ADD_2,
+		geomState.depths,
 		(glm::mat3x3*)dL_dKWH, // 输出
 		(glm::vec3*)dL_dmean2D, // 输出
 		// (float4*)dL_dconic, // 输出

@@ -32,7 +32,7 @@ std::function<char*(size_t N)> resizeFunctional(torch::Tensor& t) {
     return lambda;
 }
 
-std::tuple<int, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
+std::tuple<int, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor>
 RasterizeGaussiansCUDA(
 	const torch::Tensor& background,
 	const torch::Tensor& means3D,
@@ -71,8 +71,10 @@ RasterizeGaussiansCUDA(
   torch::Tensor out_depth = torch::full({H, W}, 0.0, float_opts);
   torch::Tensor out_normal = torch::full({3, H, W}, 0.0, float_opts);
   torch::Tensor out_opacity = torch::full({H, W}, 0.0, float_opts);
+  torch::Tensor ADD_2 = torch::full({H, W, 3}, 0.0, float_opts); //每个元素存的是distortion推导中的A(N-1), D(N-1), D_2(N-1)
+  torch::Tensor distort = torch::full({H, W}, 0.0, float_opts);
 //   torch::Tensor radii = torch::full({P}, 0, means3D.options().dtype(torch::kInt32));
-  torch::Tensor radii = torch::full({P,2}, 0, float_opts);
+  torch::Tensor radii = torch::full({P, 2}, 0, float_opts);
   
   torch::Device device(torch::kCUDA);
   torch::TensorOptions options(torch::kByte);
@@ -114,10 +116,12 @@ RasterizeGaussiansCUDA(
 		// tan_fovx,
 		// tan_fovy,
 		prefiltered,
+		ADD_2.contiguous().data<float>(),
 		out_color.contiguous().data<float>(),
 		out_depth.contiguous().data<float>(),
 		out_normal.contiguous().data<float>(),
 		out_opacity.contiguous().data<float>(),
+		distort.contiguous().data<float>(),
 		// const torch::Tensor& cam_intr,
 		radii.contiguous().data<float>(),
 		debug);
@@ -128,6 +132,8 @@ RasterizeGaussiansCUDA(
 	out_depth, 
 	out_normal, 
 	out_opacity, 
+	distort,
+	ADD_2,
 	radii, 
 	geomBuffer, 
 	binningBuffer, 
@@ -151,7 +157,9 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	// const float tan_fovx,
 	// const float tan_fovy,
     const torch::Tensor& dL_dout_color,
+    const torch::Tensor& dL_dout_distort,
 	const torch::Tensor& sh,
+	const torch::Tensor& ADD_2,
 	const int degree,
 	const torch::Tensor& campos,
 	const torch::Tensor& geomBuffer,
@@ -190,6 +198,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  W, H, 
 	  means3D.contiguous().data<float>(),
 	  sh.contiguous().data<float>(),
+	  ADD_2.contiguous().data<float>(),
 	  colors.contiguous().data<float>(),
 	  scales.data_ptr<float>(),
 	  scale_modifier,
@@ -206,6 +215,7 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  reinterpret_cast<char*>(binningBuffer.contiguous().data_ptr()),
 	  reinterpret_cast<char*>(imageBuffer.contiguous().data_ptr()),
 	  dL_dout_color.contiguous().data<float>(),
+	  dL_dout_distort.contiguous().data<float>(),
 	  dL_dKWH.contiguous().data<float>(),
 	  dL_dmeans2D.contiguous().data<float>(),
 	  p2_gradient.contiguous().data<float>(),

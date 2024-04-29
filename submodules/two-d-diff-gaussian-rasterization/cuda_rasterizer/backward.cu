@@ -430,6 +430,9 @@ renderCUDA(
 	const float* __restrict__ final_Ts, // \Pi (1-alpha*g) (j=1,...,N)
 	const uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ dL_dpixels, //dl/dc
+	const float* __restrict__ dL_dout_distort,
+	const glm::vec3* ADD_2,
+	const float* depths,
 	glm::mat3x3* __restrict__ dL_dKWH,
 	glm::vec3* __restrict__ dL_dmean2D,
 	// float4* __restrict__ dL_dconic2D,
@@ -447,6 +450,8 @@ renderCUDA(
 	const float coff = 1 / (sqrt(2) / 2);
 	const float coff_2 = coff * coff;
 	const float sigma_2 = sigma * sigma;
+	const glm::vec3 ADD_2_N_Minus_1 = ADD_2[pix_id];
+	const float dL_ddistort = dL_dout_distort[pix_id];
 
 
 	const bool inside = pix.x < W&& pix.y < H;
@@ -461,6 +466,8 @@ renderCUDA(
 	__shared__ float2 collected_xy[BLOCK_SIZE];
 	__shared__ float4 collected_conic_opacity[BLOCK_SIZE];
 	__shared__ float collected_colors[C * BLOCK_SIZE]; // 一个tile上一个round中256个高斯的颜色
+	__shared__ glm::mat3x3 collected_KWH[BLOCK_SIZE];
+	__shared__ float colloected_depths[BLOCK_SIZE]; // 每个高斯的深度
 
 	// In the forward, we stored the final value for T, the
 	// product of all (1 - alpha) factors. 
@@ -473,6 +480,7 @@ renderCUDA(
 	const int last_contributor = inside ? n_contrib[pix_id] : 0;
 
 	float accum_rec[C] = { 0 };
+	float accum_wTa = 0.0f;
 	float dL_dpixel[C];
 	if (inside)
 		for (int i = 0; i < C; i++)
@@ -501,6 +509,8 @@ renderCUDA(
 			collected_id[block.thread_rank()] = coll_id; // 高斯绝对索引
 			collected_xy[block.thread_rank()] = points_xy_image[coll_id];
 			collected_conic_opacity[block.thread_rank()] = conic_opacity[coll_id];
+			collected_KWH[block.thread_rank()] = KWH[coll_id];
+			colloected_depths[block.thread_rank()] = depths[coll_id];
 			for (int i = 0; i < C; i++)
 				collected_colors[i * BLOCK_SIZE + block.thread_rank()] = colors[coll_id * C + i];// 列主序到行主序
 		}
@@ -524,18 +534,18 @@ renderCUDA(
 
 			// const float2 d = { xy.x - pixf.x, xy.y - pixf.y };
 			const float4 con_o = collected_conic_opacity[j];
+			float depth = colloected_depths[j];
 			// const float power = -0.5f * (con_o.x * d.x * d.x + con_o.z * d.y * d.y) - con_o.y * d.x * d.y;
 			// if (power > 0.0f)
 			// 	continue;
 			// const float G = exp(power);
 			
-			const glm::mat4x3 T_t = KWH[collected_id[j]];//
+			const glm::mat4x3 T_t = collected_KWH[j];//
 			const glm::vec3 k = -T_t[0] + pixf.x * T_t[2]; // hu
 			const glm::vec3 l = -T_t[1] + pixf.y * T_t[2]; // hv
 			const glm::vec3 point = glm::cross(k,l); 
 			const float dist3d = (point.x * point.x + point.y * point.y) / (point.z * point.z);			
 			const float dist2d = coff_2 * ((xy.x - pixf.x) * (xy.x - pixf.x) + (xy.y - pixf.y) * (xy.y - pixf.y));
-
 			float dist = dist3d;
 			// float dist = 0.0f;
 			// if(dist3d > dist2d){
@@ -552,14 +562,19 @@ renderCUDA(
 			const float alpha = min(0.99f, con_o.w * G); // 这里的alpha指ag
 			if (alpha < 1.0f / 255.0f)
 				continue;
-
-			T = T / (1.f - alpha); // T_j
+				
+			float dLdist_domega = dL_ddistort * (depth * depth * ADD_2_N_Minus_1.x - 2 * depth * ADD_2_N_Minus_1.y + ADD_2_N_Minus_1.z);
+			
+			T = T / (1.f - alpha);
 			const float dchannel_dcolor = alpha * T;  // dc_hat/dc 对每个高斯颜色的梯度
 
 			// Propagate gradients to per-Gaussian colors and keep
 			// gradients w.r.t. alpha (blending factor for a Gaussian/pixel
 			// pair).
+			float dLrgb_dalpha = 0.0f;
+			float dLdist_dalpha = 0.0f; // 该值与颜色无关
 			float dL_dalpha = 0.0f;
+
 			const int global_id = collected_id[j];
 			for (int ch = 0; ch < C; ch++)
 			{
@@ -569,13 +584,18 @@ renderCUDA(
 				last_color[ch] = c;
 
 				const float dL_dchannel = dL_dpixel[ch]; // dl/dc_hat，所有高斯的该值都一样
-				dL_dalpha += (c - accum_rec[ch]) * dL_dchannel;
+				dLrgb_dalpha += (c - accum_rec[ch]) * dL_dchannel;
+
 				// Update the gradients w.r.t. color of the Gaussian. 
 				// Atomic, since this pixel is just one of potentially
 				// many that were affected by this Gaussian.
 				atomicAdd(&(dL_dcolors[global_id * C + ch]), dchannel_dcolor * dL_dchannel);
 			}
-			dL_dalpha *= T;
+			dLrgb_dalpha *= T;
+
+
+			accum_wTa += dLdist_domega * T * alpha;
+			dLdist_dalpha = (dLdist_domega * T - accum_wTa) / (1 - alpha);
 			// Update last alpha (to be used in the next iteration)
 			last_alpha = alpha;
 
@@ -584,8 +604,11 @@ renderCUDA(
 			float bg_dot_dpixel = 0;
 			for (int i = 0; i < C; i++)
 				bg_dot_dpixel += bg_color[i] * dL_dpixel[i];
-			dL_dalpha += (-T_final / (1.f - alpha)) * bg_dot_dpixel; // 有背景则有一个固定值
+			dLrgb_dalpha += (-T_final / (1.f - alpha)) * bg_dot_dpixel; // 有背景则有一个固定值
 
+
+			dL_dalpha = dLrgb_dalpha + dLdist_dalpha;
+			// dL_dalpha = dLrgb_dalpha;
 			// T, G, dL_dG, 计算正确
 			// Helpful reusable temporary variables
 			const float dL_dG = con_o.w * dL_dalpha; // dl/dg_i
@@ -709,6 +732,9 @@ void BACKWARD::render(
 	const float* final_Ts, // accum_alpha
 	const uint32_t* n_contrib,
 	const float* dL_dpixels,
+	const float* dL_dout_distort,
+	const glm::vec3* ADD_2,
+	const float* depths,
 	glm::mat3x3* dL_dKWH,
 	glm::vec3* dL_dmean2D,
 	// float4* dL_dconic2D,
@@ -728,6 +754,9 @@ void BACKWARD::render(
 		final_Ts,
 		n_contrib,
 		dL_dpixels,
+		dL_dout_distort,
+		ADD_2,
+		depths,
 		dL_dKWH, // 较难确认
 		dL_dmean2D,
 		// dL_dconic2D,

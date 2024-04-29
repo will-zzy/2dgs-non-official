@@ -134,7 +134,7 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
         bg = torch.rand((3), device="cuda") if config.optimizer.random_background else background
 
         render_pkg = render(viewpoint_cam, gaussians, config.pipeline, bg)
-        image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
+        image, viewspace_point_tensor, visibility_filter, radii, distort_loss = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"], render_pkg["distort_loss"]
         
         means3D, scales, sh ,colors =\
         render_pkg["means3D"], render_pkg["scales"], render_pkg["sh"], render_pkg["colrors"]
@@ -156,7 +156,7 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
         gt_image = viewpoint_cam.get_image.cuda()
         # gt_image = torch.zeros_like(image).cuda()
         Ll1 = l1_loss(image, gt_image)
-        loss = (1.0 - config.loss.lambda_ssim) * Ll1 + config.loss.lambda_ssim * (1.0 - ssim(image, gt_image))
+        loss = (1.0 - config.loss.lambda_ssim) * Ll1 + config.loss.lambda_ssim * (1.0 - ssim(image, gt_image)) + 0.1 * distort_loss.sum() / (distort_loss.shape[0]*distort_loss.shape[1])
         # loss = (1.0 - config.loss.lambda_ssim) * Ll1 
         loss.backward()
 

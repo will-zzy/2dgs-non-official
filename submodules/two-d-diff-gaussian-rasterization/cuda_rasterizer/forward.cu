@@ -404,13 +404,15 @@ renderCUDA(
 	const glm::mat3x3* __restrict__ KWH, //!!!
 	const float* __restrict__ features,
 	const float4* __restrict__ conic_opacity,
+	glm::vec3* __restrict__ ADD_2,
 	float* __restrict__ final_T,
 	uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ bg_color,
 	float* __restrict__ out_color,
 	float* __restrict__ out_depth,
 	float* __restrict__ out_normal,
-	float* __restrict__ out_opacity
+	float* __restrict__ out_opacity,
+	float* __restrict__ distort
 )
 {
 	// Identify current tile and associated min/max pixel range.
@@ -434,21 +436,29 @@ renderCUDA(
 	// 注意10,50不是means3D的索引，其索引放在了binningState.point_list中
 
 	const int rounds = ((range.y - range.x + BLOCK_SIZE - 1) / BLOCK_SIZE);
-	int toDo = range.y - range.x;
+	int toDo = range.y - range.x; // 该tile上有多少个高斯
 
 	// Allocate storage for batches of collectively fetched data.
 	__shared__ int collected_id[BLOCK_SIZE];
 	__shared__ float2 collected_xy[BLOCK_SIZE];
 	__shared__ float4 collected_conic_opacity[BLOCK_SIZE];
+	__shared__ glm::mat3x3 collected_KWH[BLOCK_SIZE];
 
 	// Initialize helper variables
 	float T = 1.0f;
 	uint32_t contributor = 0;
 	uint32_t last_contributor = 0;
 	float C[CHANNELS] = { 0 };
-	float depth = 0.0f;
+	float depth = 15.0f;
 	float normal[3] = {0};
 	bool depth_done = false;
+	float A_N_Minus_1 = 0.0f;
+	float D_N_Minus_1 = 0.0f;
+	float D_2_N_Minus_1 = 0.0f;
+	float distort_loss = 0.0f;
+	
+
+
 	// Iterate over batches until all done or range is complete
 	for (int i = 0; i < rounds; i++, toDo -= BLOCK_SIZE)
 	{
@@ -465,6 +475,7 @@ renderCUDA(
 			collected_id[block.thread_rank()] = coll_id;
 			collected_xy[block.thread_rank()] = points_xy_image[coll_id];
 			collected_conic_opacity[block.thread_rank()] = conic_opacity[coll_id];
+			collected_KWH[block.thread_rank()] = KWH[coll_id];
 		}
 		block.sync();
 
@@ -479,10 +490,12 @@ renderCUDA(
 			float2 xy = collected_xy[j]; // point_image
 			// float2 dist2 = { xy.x - pixf.x, xy.y - pixf.y }; // xy平面上的距离
 			float4 con_o = collected_conic_opacity[j];
+
 			// float power = -0.5f * (con_o.x * d.x * d.x + con_o.z * d.y * d.y) - con_o.y * d.x * d.y;
 			float g = computeLocalGaussian(
 				sigma,
-				KWH[collected_id[j]],
+				// KWH[collected_id[j]],
+				collected_KWH[j],
 				pixf,
 				xy
 			);
@@ -507,19 +520,28 @@ renderCUDA(
 			}
 			
 			// Eq. (3) from 3D Gaussian splatting paper.
+			const float omega = alpha * T;
 			for (int ch = 0; ch < CHANNELS; ch++)
-				C[ch] += features[collected_id[j] * CHANNELS + ch] * alpha * T;
+				C[ch] += features[collected_id[j] * CHANNELS + ch] * omega;
+				
+			const float m = depths[collected_id[j]];
 
-			// depth += depths[collected_id[j]] * alpha * T;
-			normal[0] += normals[collected_id[j] * 3] * alpha * T;
-			normal[1] += normals[collected_id[j] * 3 + 1] * alpha * T;
-			normal[2] += normals[collected_id[j] * 3 + 2] * alpha * T;
+			distort_loss += omega * (m * m * A_N_Minus_1 + D_2_N_Minus_1 - 2 * m * D_N_Minus_1);
+
+			A_N_Minus_1 += omega;
+			D_N_Minus_1 += m * omega;
+			D_2_N_Minus_1 += m * m * omega;
 			// printf("%f,%f,%f\n",normal[0],normal[1],normal[2]);
+			
 			T = test_T;
 			if(T < 0.5 && !depth_done){
 				depth_done = true;
 				depth = depths[collected_id[j]];
 			}
+			// depth += depths[collected_id[j]] * omega;
+			normal[0] += normals[collected_id[j] * 3] * omega;
+			normal[1] += normals[collected_id[j] * 3 + 1] * omega;
+			normal[2] += normals[collected_id[j] * 3 + 2] * omega;
 
 			// Keep track of last range entry to update this
 			// pixel.
@@ -539,6 +561,11 @@ renderCUDA(
 		}
 		out_depth[pix_id] = depth;
 		out_opacity[pix_id] = 1 - T;
+
+		ADD_2[pix_id].x = A_N_Minus_1;
+		ADD_2[pix_id].y = D_N_Minus_1;
+		ADD_2[pix_id].z = D_2_N_Minus_1;
+		distort[pix_id] = distort_loss;
 	}
 }
 
@@ -558,13 +585,15 @@ void FORWARD::render(
 	const glm::mat3x3* KWH,
 	const float* colors,
 	const float4* conic_opacity,
+	glm::vec3* ADD_2,
 	float* final_T,
 	uint32_t* n_contrib,
 	const float* bg_color,
 	float* out_color,
 	float* out_depth,
 	float* out_normal,
-	float* out_opacity)
+	float* out_opacity,
+	float* distort)
 {
 	renderCUDA<NUM_CHANNELS> << <grid, block >> > (
 		ranges,
@@ -581,13 +610,15 @@ void FORWARD::render(
 		KWH,
 		colors,
 		conic_opacity,
+		ADD_2,
 		final_T,
 		n_contrib,
 		bg_color,
 		out_color,
 		out_depth,
 		out_normal,
-		out_opacity);
+		out_opacity,
+		distort);
 }
 
 void FORWARD::preprocess(int P, int D, int M,

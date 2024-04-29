@@ -68,13 +68,15 @@ namespace FORWARD
 		const glm::mat3x3* KWH,
 		const float* colors,
 		const float4* conic_opacity,
+		glm::vec3* ADD_2,
 		float* final_T,
 		uint32_t* n_contrib,
 		const float* bg_color,
 		float* out_color,
 		float* out_depth,
 		float* out_normal,
-		float* out_opacity);
+		float* out_opacity,
+		float* distort);
 }
 
 

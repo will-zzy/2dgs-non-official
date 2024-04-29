@@ -50,10 +50,12 @@ namespace CudaRasterizer
 			const float* cam_intr,
 			// const float tan_fovx, float tan_fovy,
 			const bool prefiltered,
+			float* ADD_2,
 			float* out_color,
 			float* out_depth,
 			float* out_normal,
 			float* out_opacity,
+			float* distort,
 			float* radii = nullptr,
 			bool debug = false);
 
@@ -63,6 +65,7 @@ namespace CudaRasterizer
 			const int width, int height,
 			const float* means3D,
 			const float* shs,
+			const float* ADD_2,
 			const float* colors_precomp,
 			const float* scales,
 			const float scale_modifier,
@@ -78,6 +81,7 @@ namespace CudaRasterizer
 			char* binning_buffer,
 			char* image_buffer,
 			const float* dL_dpix,
+			const float* dL_dout_distort,
 			float* dL_dKWH,
 			float* dL_dmean2D,
 			float* p2_gradient,
