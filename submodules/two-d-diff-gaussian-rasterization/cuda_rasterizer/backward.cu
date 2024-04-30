@@ -434,6 +434,7 @@ renderCUDA(
 	const glm::vec3* ADD_2,
 	const float* depths,
 	glm::mat3x3* __restrict__ dL_dKWH,
+	glm::vec3* __restrict__ dL_dmean3D,
 	glm::vec3* __restrict__ dL_dmean2D,
 	// float4* __restrict__ dL_dconic2D,
 	float* __restrict__ dL_dopacity,
@@ -447,20 +448,29 @@ renderCUDA(
 	const uint2 pix = { pix_min.x + block.thread_index().x, pix_min.y + block.thread_index().y };
 	const uint32_t pix_id = W * pix.y + pix.x;
 	const float2 pixf = { (float)pix.x, (float)pix.y };
+
+	// const uint32_t pix_last = 50000;
+
 	const float coff = 1 / (sqrt(2) / 2);
 	const float coff_2 = coff * coff;
 	const float sigma_2 = sigma * sigma;
-	const glm::vec3 ADD_2_N_Minus_1 = ADD_2[pix_id];
-	const float dL_ddistort = dL_dout_distort[pix_id];
-
-
+	
+	glm::vec3 ADD_2_N_Minus_1(0.0f);
+	float dL_ddistort = 0.0f;
+	
 	const bool inside = pix.x < W&& pix.y < H;
+	if(inside){
+		ADD_2_N_Minus_1 = ADD_2[pix_id];
+		dL_ddistort = dL_dout_distort[pix_id];
+	}
+
 	const uint2 range = ranges[block.group_index().y * horizontal_blocks + block.group_index().x];
 
 	const int rounds = ((range.y - range.x + BLOCK_SIZE - 1) / BLOCK_SIZE);
 
 	bool done = !inside;
 	int toDo = range.y - range.x;
+
 
 	__shared__ int collected_id[BLOCK_SIZE];
 	__shared__ float2 collected_xy[BLOCK_SIZE];
@@ -565,9 +575,12 @@ renderCUDA(
 				
 			float dLdist_domega = dL_ddistort * (depth * depth * ADD_2_N_Minus_1.x - 2 * depth * ADD_2_N_Minus_1.y + ADD_2_N_Minus_1.z);
 			
+			// if(pix_last == pix_id)
+			// 	printf("%.12f\n",dLdist_domega);
 			T = T / (1.f - alpha);
-			const float dchannel_dcolor = alpha * T;  // dc_hat/dc 对每个高斯颜色的梯度
-
+			const float omega = alpha * T;
+			const float dchannel_dcolor = omega;  // dc_hat/dc 对每个高斯颜色的梯度
+			const float dL_dm = 2 * omega * depth * ADD_2_N_Minus_1.x - 2 * omega * ADD_2_N_Minus_1.y;
 			// Propagate gradients to per-Gaussian colors and keep
 			// gradients w.r.t. alpha (blending factor for a Gaussian/pixel
 			// pair).
@@ -607,8 +620,8 @@ renderCUDA(
 			dLrgb_dalpha += (-T_final / (1.f - alpha)) * bg_dot_dpixel; // 有背景则有一个固定值
 
 
-			// dL_dalpha = dLrgb_dalpha + dLdist_dalpha;
-			dL_dalpha = dLrgb_dalpha;
+			dL_dalpha = dLrgb_dalpha + dLdist_dalpha;
+			// dL_dalpha = dLrgb_dalpha;
 			// T, G, dL_dG, 计算正确
 			// Helpful reusable temporary variables
 			const float dL_dG = con_o.w * dL_dalpha; // dl/dg_i
@@ -638,6 +651,7 @@ renderCUDA(
 			atomicAdd(&dL_dKWH[global_id][2][1], -dL_dd * (dd_dp.x * (-x * l.z + y * k.z) + dd_dp.z * ( x * l.x - y * k.x)));
 			atomicAdd(&dL_dKWH[global_id][2][2], -dL_dd * (dd_dp.x * ( x * l.y - y * k.y) + dd_dp.y * (-x * l.x + y * k.x)));
 
+			atomicAdd(&dL_dmean3D[global_id].z, dL_dm);
 			// if(dist3d > dist2d){
 			// 	atomicAdd(&(dL_dmean2D[global_id].x),-coff_2 * dL_dG * G * (xy.x - pixf.x));
 			// 	atomicAdd(&(dL_dmean2D[global_id].y),-coff_2 * dL_dG * G * (xy.y - pixf.y));
@@ -736,6 +750,7 @@ void BACKWARD::render(
 	const glm::vec3* ADD_2,
 	const float* depths,
 	glm::mat3x3* dL_dKWH,
+	glm::vec3* dL_dmean3D,
 	glm::vec3* dL_dmean2D,
 	// float4* dL_dconic2D,
 	float* dL_dopacity,
@@ -758,6 +773,7 @@ void BACKWARD::render(
 		ADD_2,
 		depths,
 		dL_dKWH, // 较难确认
+		dL_dmean3D,
 		dL_dmean2D,
 		// dL_dconic2D,
 		dL_dopacity, // 正确

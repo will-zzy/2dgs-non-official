@@ -463,6 +463,7 @@ void CudaRasterizer::Rasterizer::backward(
 		(glm::vec3*)ADD_2,
 		geomState.depths,
 		(glm::mat3x3*)dL_dKWH, // 输出
+		(glm::vec3*)dL_dmean3D,
 		(glm::vec3*)dL_dmean2D, // 输出
 		// (float4*)dL_dconic, // 输出
 		dL_dopacity, // 输出

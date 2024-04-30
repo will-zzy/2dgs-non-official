@@ -135,11 +135,14 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
 
         render_pkg = render(viewpoint_cam, gaussians, config.pipeline, bg)
         image, viewspace_point_tensor, visibility_filter, radii, distort_loss = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"], render_pkg["distort_loss"]
-        
+
         means3D, scales, sh ,colors =\
         render_pkg["means3D"], render_pkg["scales"], render_pkg["sh"], render_pkg["colrors"]
         
         image_write = torch.clamp(render_pkg["render"], 0.0, 1.0)
+        normal_write = render_pkg["normal"]
+        normal_write[normal_write.isnan()]=0
+        normal_write = (normal_write + 1.0) / 2.0
         depth_write = render_pkg['depth']
         opacity_map = render_pkg["opacity"]
         opacity_map[opacity_map<1e-4] = 1.0
@@ -149,6 +152,7 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
         output_dir = os.path.join(config.gs_model.output_dir,f"{0}")
         os.makedirs(output_dir,exist_ok=True)
         imageio.imwrite(os.path.join(output_dir,f"{0}_rgb.jpg"),(image_write.permute(1,2,0).detach().cpu().numpy()*255).astype(np.uint8))
+        imageio.imwrite(os.path.join(output_dir,f"{0}_normal.jpg"),(normal_write.permute(1,2,0).detach().cpu().numpy()*255).astype(np.uint8))
         cv2.imwrite(os.path.join(output_dir,f"{0}_depth.jpg"),depth_write)
         
         
@@ -156,11 +160,17 @@ def training(config, testing_iterations, saving_iterations, checkpoint_iteration
         gt_image = viewpoint_cam.get_image.cuda()
         # gt_image = torch.zeros_like(image).cuda()
         Ll1 = l1_loss(image, gt_image)
-        if iteration < 670:
-            loss = (1.0 - config.loss.lambda_ssim) * Ll1 + config.loss.lambda_ssim * (1.0 - ssim(image, gt_image))
-        else:
-            loss = (1.0 - config.loss.lambda_ssim) * Ll1 + config.loss.lambda_ssim * (1.0 - ssim(image, gt_image)) + 0.1 * distort_loss.sum() / (distort_loss.shape[0]*distort_loss.shape[1])
-        # loss = (1.0 - config.loss.lambda_ssim) * Ll1 
+        # if iteration < 670:
+        #     loss = (1.0 - config.loss.lambda_ssim) * Ll1 + config.loss.lambda_ssim * (1.0 - ssim(image, gt_image))
+        # else:
+        #     loss = (1.0 - config.loss.lambda_ssim) * Ll1 + config.loss.lambda_ssim * (1.0 - ssim(image, gt_image)) + 0.1 * distort_loss.sum() / (distort_loss.shape[0]*distort_loss.shape[1])
+        
+        dist_loss = 0.0 * distort_loss.mean()
+        
+        # dist_loss = distort_loss.sum()
+        
+        loss = (1.0 - config.loss.lambda_ssim) * Ll1 + dist_loss
+        # loss = (1.0 - config.loss.lambda_ssim) * Ll1 + config.loss.lambda_ssim * (1.0 - ssim(image, gt_image)) + dist_loss
         loss.backward()
 
         iter_end.record()

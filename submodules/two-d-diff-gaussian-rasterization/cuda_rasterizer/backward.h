@@ -38,6 +38,7 @@ namespace BACKWARD
 		const glm::vec3* ADD_2,
 		const float* depths,
 		glm::mat3x3* dL_dKWH,
+		glm::vec3* dL_dmean3D,
 		glm::vec3* dL_dmean2D,
 		// float4* dL_dconic2D,
 		float* dL_dopacity,

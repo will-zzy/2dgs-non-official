@@ -184,7 +184,7 @@ class GaussianModel:
         #     quats = torch.zeros(1,4).repeat(len(means3D), 1).cuda()
         #     quats[..., 0] = 1.
         #     scale = length /(num_points-1)
-        #     scales = torch.zeros(1,3).repeat(len(means3D), 1).fill_(scale).cuda()
+        #     scales = torch.zeros(1,3).repeat(len(means3D), 1).fill_(scale).cuda() * 3
         #     return means3D, scales, quats
         # means3D, scales, quats = get_inputs(num_points=3)
         # self._xyz = nn.Parameter(means3D.requires_grad_(True))

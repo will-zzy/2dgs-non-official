@@ -32,7 +32,7 @@ __device__ glm::mat3 makeMat3FromMat4(glm::mat4 mat4x4){ // 取前三行三列�
 	return mat3x3;
 }
 
-__device__ glm::mat3 computeRotScaFromQua(glm::vec4 quaternion, glm::vec3 scale){
+__device__ glm::mat3 computeRotScaFromQua(glm::vec4 quaternion, glm::vec3 scale, float* normal){
 	
 	glm::mat3 S = glm::mat3(
 		scale.x, 0.0f, 0.0f,
@@ -59,6 +59,9 @@ __device__ glm::mat3 computeRotScaFromQua(glm::vec4 quaternion, glm::vec3 scale)
 
 	glm::mat3 L = S * R;
 	// glm::mat3 L = R * S;
+	normal[0] = R[0][2];
+	normal[0] = R[1][2];
+	normal[0] = R[2][2];
 
 	return L;
 }
@@ -192,10 +195,11 @@ __device__ void compute2DGSBBox(
 	glm::mat3* T_t
 ){
 
-	glm::mat3 rotation = computeRotScaFromQua(quaternion, scale); // R，尽量少用tanspose
-	normal[0] = rotation[0][2];
-	normal[1] = rotation[1][2];
-	normal[2] = rotation[2][2];
+	glm::mat3 rotation = computeRotScaFromQua(quaternion, scale, normal); // R，尽量少用tanspose
+	// normal[0] = rotation[0][2];
+	// normal[1] = rotation[1][2];
+	// normal[2] = rotation[2][2];
+	// printf("%f,%f,%f ",normal[0],normal[1],normal[2]);
 
 	// printf("%f,%f,%f",normal[0],normal[1],normal[2]);
 	
@@ -449,7 +453,7 @@ renderCUDA(
 	uint32_t contributor = 0;
 	uint32_t last_contributor = 0;
 	float C[CHANNELS] = { 0 };
-	float depth = 15.0f;
+	float depth = 0.0f;
 	float normal[3] = {0};
 	bool depth_done = false;
 	float A_N_Minus_1 = 0.0f;
@@ -523,7 +527,7 @@ renderCUDA(
 			const float omega = alpha * T;
 			for (int ch = 0; ch < CHANNELS; ch++)
 				C[ch] += features[collected_id[j] * CHANNELS + ch] * omega;
-				
+
 			const float m = depths[collected_id[j]];
 
 			distort_loss += omega * (m * m * A_N_Minus_1 + D_2_N_Minus_1 - 2 * m * D_N_Minus_1);
@@ -534,15 +538,16 @@ renderCUDA(
 			// printf("%f,%f,%f\n",normal[0],normal[1],normal[2]);
 			
 			T = test_T;
-			if(T < 0.5 && !depth_done){
+			if(T < 0.5 && !depth_done){ // 透射率=0.5深度
 				depth_done = true;
-				depth = depths[collected_id[j]];
-			}
-			// depth += depths[collected_id[j]] * omega;
-			normal[0] += normals[collected_id[j] * 3] * omega;
-			normal[1] += normals[collected_id[j] * 3 + 1] * omega;
-			normal[2] += normals[collected_id[j] * 3 + 2] * omega;
+				// depth = depths[collected_id[j]];
 
+				normal[0] += normals[collected_id[j] * 3] * omega;
+				normal[1] += normals[collected_id[j] * 3 + 1] * omega;
+				normal[2] += normals[collected_id[j] * 3 + 2] * omega;
+			}
+			depth += depths[collected_id[j]] * omega; // 深度期望
+			
 			// Keep track of last range entry to update this
 			// pixel.
 			last_contributor = contributor;
